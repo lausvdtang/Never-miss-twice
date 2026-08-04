@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" rx="14" fill="#12151a"/>
+  <!-- Buitenring: de doorlopende gewoonte. -->
+  <circle cx="32" cy="32" r="20.5" fill="none" stroke="#3fb8a4" stroke-width="4.5"/>
+  <!-- Binnenring, zachter: één misser weegt licht. -->
+  <circle cx="32" cy="32" r="10" fill="none" stroke="#3fb8a4" stroke-width="4.5" opacity="0.45"/>
+</svg>
