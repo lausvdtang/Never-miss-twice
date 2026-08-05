@@ -6,14 +6,40 @@ leaner en atletischer wil worden — zonder afhankelijk te zijn van wilskracht.
 De app draait volledig lokaal, werkt offline, vraagt geen account en stuurt geen
 enkel gegeven naar een server.
 
+## Geen buildstap
+
+Dit is een statische site: HTML, CSS en native ES-modules. De browser laadt
+`app/main.js` rechtstreeks — er wordt niets gecompileerd, gebundeld of
+gegenereerd. Wat in de repo staat, is precies wat de browser uitvoert.
+
 ```bash
-npm install
-npm run dev      # ontwikkelserver
-npm test         # 73 tests over de kernlogica
-npm run build    # productiebundel in dist/
+npm start        # of: python3 -m http.server 4173
 ```
 
----
+Daarna open je `http://localhost:4173`. Openen via `file://` werkt niet:
+ES-modules hebben `http://` of `https://` nodig.
+
+Tests zijn het enige dat Node vraagt, en die staan los van de app zelf:
+
+```bash
+npm install      # alleen vitest
+npm test         # 73 tests over de kernlogica
+```
+
+### GitHub Pages
+
+Zet Pages op **Deploy from a branch**, met de branch die je wilt publiceren en
+map **`/ (root)`**. Er is geen workflow of build nodig.
+
+Twee dingen die dit mogelijk maken:
+
+- **Alle paden zijn relatief** (`./app/main.js`, `./styles.css`). De app werkt
+  daardoor net zo goed op `https://gebruiker.github.io/Sport-app/` als op een
+  eigen domein.
+- **Routes lopen via de hash** (`#/training`). Pages kent geen server-side
+  rewrites, dus een pad als `/training` zou een 404 geven.
+
+`.nojekyll` staat in de repo zodat Pages de bestanden ongewijzigd serveert.
 
 ## Wat de app anders doet
 
@@ -83,7 +109,7 @@ Tijdens een actieve sessie verdwijnt de tabbalk: één taak per scherm.
 
 ## 2. Datamodel
 
-Alle entiteiten staan in [`src/lib/types.ts`](src/lib/types.ts). Datums zijn
+Alles wordt lokaal opgeslagen onder één sleutel in `localStorage`. Datums zijn
 lokale dagsleutels (`"2026-08-04"`), niet UTC — anders verspringt "vandaag" 's
 avonds.
 
@@ -175,8 +201,8 @@ Twee ontwerpkeuzes die het gebruik merkbaar veranderen:
 ## Kennisbasis
 
 Alle trainings-, voedings-, alcohol- en supplementcijfers staan in
-[`src/data/presets.ts`](src/data/presets.ts) met een verwijzing naar de
-paragraaf uit de specificatie waar ze vandaan komen. Ze zijn niet zelf bedacht.
+[`app/presets.js`](app/presets.js) met een verwijzing naar de paragraaf uit de
+specificatie waar ze vandaan komen. Ze zijn niet zelf bedacht.
 
 Twee uitzonderingen staan expliciet gemarkeerd met `STARTWAARDE`, omdat de
 kennisbasis daar geen cijfer voor geeft:
@@ -195,17 +221,43 @@ De app raadt bewust géén BCAA's, vetverbranders of testosteron-boosters aan.
 
 ## Techniek
 
-React 18 + TypeScript + Vite. Geen state-bibliotheek, geen router, geen
-UI-framework: een store van ~40 regels op `useSyncExternalStore`, hash-routing,
-en CSS-variabelen voor de twee thema's. De hele bundel is ~77 kB gzipped.
+Geen framework, geen bundler, geen buildstap. De hele app is ~4.000 regels
+JavaScript verdeeld over losse ES-modules:
 
-Waarom die keuze: prioriteit lag bij snelheid van interactie en betrouwbaarheid.
-Minder afhankelijkheden betekent minder dat stuk kan tijdens het loggen van een
-set met slecht bereik in de sportschool.
+```
+index.html          laadt app/main.js als <script type="module">
+styles.css          CSS-variabelen voor donker en licht
+sw.js               service worker (offline)
+app/
+  main.js           routering, hertekenen, service worker
+  dom.js            el() / svg() helpers en het hertekenen met scrollbehoud
+  ui.js             kaarten, steppers, ringen, vensters, toasts
+  nav.js            hash-routing
+  store.js          state + localStorage + IndexedDB voor foto's
+  date.js           dagsleutels, ISO-weken, Nederlandse notatie
+  presets.js        de kennisbasis
+  nutrition.js      macro's, fase-offsets, 80/20
+  training.js       progressive overload, schemakeuze
+  habits.js         streaks en never-miss-twice
+  body.js           weeglimiet, trend, coachingdrempels
+  selectors.js      afgeleide gegevens over modules heen
+  export.js         CSV, printbaar rapport, back-up
+  screens/          negen schermen, elk een functie die DOM teruggeeft
+```
 
-**Opslag.** Alles staat in `localStorage` onder één sleutel; voortgangsfoto's
-in IndexedDB omdat ze niet in de quota van `localStorage` passen. De service
-worker cachet de app-shell, dus de app start en logt zonder verbinding.
+**Hertekenen.** Een scherm is een functie die een DOM-element teruggeeft. Bij
+een wijziging in de store wordt het scherm opnieuw opgebouwd, met behoud van de
+scrollpositie — wie een set afvinkt halverwege een lange oefeningenlijst, wil
+niet terug naar boven. Tekstvelden werken hun eigen waarde bij zonder
+hertekening, zodat de focus tijdens het typen nooit wegspringt.
+
+**Opslag.** Alles in `localStorage` onder één sleutel; voortgangsfoto's in
+IndexedDB omdat ze niet in de quota van `localStorage` passen.
+
+**Offline.** De service worker cachet de app-shell met
+stale-while-revalidate: je krijgt meteen de gecachete versie en de nieuwe wordt
+op de achtergrond opgehaald. Omdat er geen buildstap is, zit er geen hash in de
+bestandsnamen — cache-first zou een update dus nooit binnenhalen.
 
 **Data eruit krijgen.** CSV per onderdeel of als één bestand, een printbaar
 overzicht (de browser maakt de PDF, zodat er niets het apparaat verlaat), en een
@@ -213,14 +265,15 @@ volledige JSON-back-up die je weer kunt terugzetten.
 
 ### Tests
 
-73 tests over de logica die fout kán gaan:
+73 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
+browser laadt — er is geen aparte bouw voor tests:
 
-- `habits.test.ts` — streaks, veerkracht bij één misser, de omslag naar
+- `habits.test.js` — streaks, veerkracht bij één misser, de omslag naar
   interventie bij twee, en een test die schuldgevoel-taal uitsluit
-- `nutrition.test.ts` — macroberekening, fase-offsets, 80/20-balans, en de
+- `nutrition.test.js` — macroberekening, fase-offsets, 80/20-balans, en de
   alcoholpresets tegen de kennisbasis
-- `training.test.ts` — progressive overload, schemakeuze, en de controle dat
+- `training.test.js` — progressive overload, schemakeuze, en de controle dat
   elk schema elke spiergroep ≥2× per week traint
-- `body.test.ts` — de 1×-per-week-grens, voortschrijdend gemiddelde en de
+- `body.test.js` — de 1×-per-week-grens, voortschrijdend gemiddelde en de
   coachingdrempels
-- `store.test.ts` — dat elke wijziging een nieuwe root-referentie oplevert
+- `store.test.js` — dat elke wijziging een nieuwe root-referentie oplevert
