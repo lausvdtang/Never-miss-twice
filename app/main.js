@@ -8,7 +8,7 @@ import { renderNutrition } from './screens/nutrition.js';
 import { renderOnboarding, setOnboardingRerender } from './screens/onboarding.js';
 import { renderSession } from './screens/session.js';
 import { renderSettings } from './screens/settings.js';
-import { renderToday } from './screens/today.js';
+import { renderToday, setTodayRerender } from './screens/today.js';
 import { renderTraining } from './screens/training.js';
 import { renderWeek } from './screens/week.js';
 
@@ -91,6 +91,7 @@ function render() {
 }
 
 setOnboardingRerender(render);
+setTodayRerender(render);
 initNav();
 subscribe(render);
 onNavigate(render);

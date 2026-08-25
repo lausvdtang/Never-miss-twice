@@ -17,8 +17,10 @@ import {
   sessionVolume,
   weeklyCardioMinutes,
 } from '../training.js';
+import { changeLabel, progressSummary, volumeSeries } from '../progress.js';
 import {
   badge,
+  barChart,
   button,
   card,
   cardTitle,
@@ -136,6 +138,84 @@ function openCardioSheet(day) {
   });
 }
 
+/**
+ * "Iets anders gedaan": een sessie loggen die niet in het schema staat —
+ * zwemmen, een partijtje voetbal, klussen. Telt gewoon mee als getraind, want
+ * de bedoeling is bewegen, niet het schema afvinken.
+ */
+function openSomethingElseSheet(day) {
+  let name = '';
+  const suggestions = ['Zwemmen', 'Voetbal', 'Fietsen', 'Klussen', 'Wandeling', 'Thuisworkout'];
+
+  openSheet({
+    title: 'Iets anders gedaan',
+    render() {
+      const input = el('input', {
+        class: 'input',
+        placeholder: 'Wat heb je gedaan?',
+        'aria-label': 'Wat heb je gedaan',
+        oninput: (e) => {
+          name = e.target.value;
+        },
+      });
+
+      const save = () => {
+        const label = name.trim();
+        if (!label) {
+          toast('Vul even in wat je gedaan hebt.');
+          return;
+        }
+        update((s) => {
+          s.sessions = [
+            ...s.sessions.filter((x) => !(x.day === day && x.status === 'gepland')),
+            {
+              id: newId('ses'),
+              day,
+              templateId: null,
+              templateName: label,
+              status: 'voltooid',
+              startedAt: nowISO(),
+              finishedAt: nowISO(),
+              sets: [],
+              notes: 'Buiten het schema om gelogd.',
+            },
+          ];
+        });
+        closeSheet();
+        tapFeedback(getState().settings.celebrate);
+        toast('Ik ben iemand die traint. Telt gewoon mee.', true);
+        go('vandaag');
+      };
+
+      return el(
+        'div',
+        { class: 'stack' },
+        el(
+          'p',
+          { class: 'muted' },
+          'Alles telt mee. Dit vervangt de training van vandaag en houdt je streak gewoon lopend.',
+        ),
+        el(
+          'div',
+          { class: 'row wrap' },
+          ...suggestions.map((s) =>
+            chip(s, {
+              outline: true,
+              onclick: () => {
+                name = s;
+                input.value = s;
+                save();
+              },
+            }),
+          ),
+        ),
+        input,
+        button('Loggen', { variant: 'primary lg block', onclick: save }),
+      );
+    },
+  });
+}
+
 function openPickerSheet(day, split) {
   openSheet({
     title: 'Welke sessie?',
@@ -201,6 +281,13 @@ export function renderTraining() {
     .filter((s) => s.status === 'voltooid' || s.status === 'minimaal')
     .sort((a, b) => b.day.localeCompare(a.day))
     .slice(0, 12);
+
+  // Alleen schema's waar iets te vergelijken valt: één sessie is geen verloop.
+  const progressTemplates = [...new Set(state.sessions.map((s) => s.templateName))]
+    .map((name) => ({ name, series: volumeSeries(state.sessions, name, { limit: 8 }) }))
+    .filter((t) => t.series.length >= 2)
+    .sort((a, b) => b.series.length - a.series.length)
+    .slice(0, 4);
 
   const warning = cardioInterferenceWarning(
     !!plan.template,
@@ -318,16 +405,66 @@ export function renderTraining() {
 
     card(
       null,
-      cardTitle(el('p', { class: 'eyebrow' }, 'Andere sessie doen')),
+      cardTitle(el('p', { class: 'eyebrow' }, 'Iets anders doen')),
       el(
         'p',
         { class: 'muted' },
-        'Schema van vandaag past niet? Kies gewoon een andere — het schema is een hulpmiddel, geen contract.',
+        'Schema van vandaag past niet? Het schema is een hulpmiddel, geen contract.',
       ),
-      button('Kies een sessie', {
-        variant: 'ghost block',
-        onclick: () => openPickerSheet(day, split),
-      }),
+      el(
+        'div',
+        { class: 'grid-2' },
+        button('Andere sessie', {
+          variant: 'ghost',
+          onclick: () => openPickerSheet(day, split),
+        }),
+        button('Iets anders gedaan', {
+          variant: 'ghost',
+          onclick: () => openSomethingElseSheet(day),
+        }),
+      ),
+    ),
+
+    /* Voortgang per training: doe ik steeds meer? */
+    when(progressTemplates.length > 0, () =>
+      card(
+        null,
+        cardTitle(
+          el('p', { class: 'eyebrow' }, 'Voortgang per training'),
+          badge('volume', 'calm'),
+        ),
+        el(
+          'div',
+          { class: 'stack' },
+          ...progressTemplates.map(({ name, series }) => {
+            const change = changeLabel(series);
+            return el(
+              'div',
+              { class: 'stack-sm' },
+              el(
+                'div',
+                { class: 'row-between' },
+                el('span', { style: { fontWeight: '600' } }, name),
+                el(
+                  'span',
+                  { class: 'row' },
+                  el(
+                    'span',
+                    { class: 'faint' },
+                    `${series[series.length - 1].value.toLocaleString('nl-NL')} kg`,
+                  ),
+                  badge(change.text, change.tone),
+                ),
+              ),
+              barChart(series, {
+                height: 74,
+                formatValue: (v) => `${v.toLocaleString('nl-NL')} kg`,
+              }),
+              el('p', { class: 'faint' }, progressSummary(series)),
+            );
+          }),
+        ),
+      ),
     ),
 
     when(history.length > 0, () =>

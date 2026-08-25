@@ -844,12 +844,59 @@ textarea.input {
   font-weight: 620;
   font-size: 0.95rem;
   min-width: 0;
+  height: 42px;
+  padding: 0;
+  background: none;
 }
 
 .mini-step .val small {
   color: var(--text-faint);
   font-weight: 500;
   font-size: 0.68rem;
+}
+
+/*
+  Aantikbaar getal: een stippellijntje eronder verraadt dat je het ook gewoon
+  kunt intypen. Zonder die hint blijft iedereen op +/- rammen.
+*/
+.editable {
+  border-bottom: 1px dashed var(--text-faint);
+  border-radius: 0;
+  cursor: text;
+}
+
+.editable:active {
+  opacity: 0.6;
+}
+
+.inline-num {
+  border: none;
+  background: var(--surface-3);
+  border-radius: 6px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 620;
+  width: 100%;
+  min-width: 0;
+  outline: 2px solid var(--accent);
+}
+
+.mini-step .inline-num {
+  flex: 1;
+  height: 42px;
+  font-size: 0.95rem;
+}
+
+.stepper-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  font-size: 1.05rem;
+  padding: 0 2px;
+}
+
+.stepper-value .inline-num {
+  font-size: 1.05rem;
+  height: 34px;
 }
 
 /* ---------------------------------------------------------------- grafiek */
@@ -859,6 +906,160 @@ textarea.input {
   height: 150px;
   display: block;
   overflow: visible;
+}
+
+.sparkline {
+  width: 132px;
+  height: 34px;
+  flex-shrink: 0;
+}
+
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  width: 100%;
+}
+
+.bar-col {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bar-col-fill {
+  width: 100%;
+  border-radius: 5px 5px 2px 2px;
+  background: var(--surface-3);
+  transition: height 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* De huidige sessie krijgt een randje zodat je hem terugvindt in de reeks. */
+.bar-col-fill.now {
+  outline: 2px solid var(--text-dim);
+  outline-offset: 1px;
+}
+
+.bar-col-label {
+  font-size: 0.62rem;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- agenda */
+
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calendar-month {
+  font-weight: 620;
+  font-size: 0.95rem;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendar-dow {
+  text-align: center;
+  font-size: 0.66rem;
+  color: var(--text-faint);
+  font-weight: 600;
+  text-transform: uppercase;
+  padding-bottom: 2px;
+}
+
+.calendar-cell {
+  aspect-ratio: 1;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  position: relative;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.calendar-cell:active {
+  transform: scale(0.92);
+}
+
+/* Groen = zelf aangegeven dat de dag gezond was. */
+.calendar-cell.healthy {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.calendar-cell.is-today {
+  outline: 2px solid var(--text-dim);
+  outline-offset: -2px;
+}
+
+/* Een dag zonder markering is geen fout, dus ook geen rood — alleen leeg. */
+.calendar-cell.future {
+  opacity: 0.32;
+  cursor: default;
+}
+
+.calendar-cell.empty-cell {
+  background: none;
+}
+
+.calendar-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--calm);
+  position: absolute;
+  bottom: 5px;
+}
+
+.calendar-cell.healthy .calendar-dot {
+  background: var(--accent-text);
+  opacity: 0.75;
+}
+
+.legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 4px;
+  background: var(--accent);
+  display: inline-block;
+}
+
+.legend-swatch.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--calm);
 }
 
 /* ----------------------------------------------------------------- badge */

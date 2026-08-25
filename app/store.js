@@ -55,6 +55,8 @@ export function initialState() {
     photos: [],
     habits: buildDefaultHabits(now),
     habitLogs: [],
+    /** Dagen die je zelf als "helemaal gezond gegeten" hebt gemarkeerd. */
+    healthyDays: [],
     intentions: [],
     checkIns: [],
     weekPlans: [],

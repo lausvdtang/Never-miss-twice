@@ -175,6 +175,42 @@ export function buildTemplates() {
   ];
 }
 
+/**
+ * Alle oefeningen die in de schema's voorkomen, plus een paar gangbare
+ * alternatieven. Gebruikt om een oefening te vervangen of toe te voegen als de
+ * sportschool vol is of iets niet lekker ligt.
+ */
+export function exerciseLibrary() {
+  const seen = new Map();
+  for (const template of buildTemplates()) {
+    for (const e of template.exercises) {
+      if (!seen.has(e.name)) {
+        seen.set(e.name, { name: e.name, sets: e.sets, repRange: e.repRange });
+      }
+    }
+  }
+
+  // Veelgebruikte vervangers die niet in de standaardschema's zitten.
+  const extras = [
+    { name: 'Machine chest press', sets: 3, repRange: '8-10' },
+    { name: 'Push-ups', sets: 3, repRange: '12-15' },
+    { name: 'Chest-supported row', sets: 3, repRange: '10' },
+    { name: 'Single-arm dumbbell row', sets: 3, repRange: '10' },
+    { name: 'Hack squat', sets: 3, repRange: '8-10' },
+    { name: 'Lunges', sets: 3, repRange: '10' },
+    { name: 'Hip thrust', sets: 3, repRange: '10' },
+    { name: 'Machine shoulder press', sets: 3, repRange: '10' },
+    { name: 'Cable lateral raise', sets: 3, repRange: '15' },
+    { name: 'Rope curl', sets: 3, repRange: '12' },
+    { name: 'Skull crushers', sets: 3, repRange: '12' },
+    { name: 'Ab wheel', sets: 3, repRange: '10' },
+    { name: 'Roeimachine', sets: 1, repRange: '10' },
+  ];
+  for (const e of extras) if (!seen.has(e.name)) seen.set(e.name, e);
+
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
 export const SPLIT_LABELS = {
   ppl6: '6-daags Push/Pull/Legs',
   upperlower5: '5-daags Upper/Lower + Full Body',

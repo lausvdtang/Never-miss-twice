@@ -1,6 +1,6 @@
 import { defaultDayAssignment, splitForDays } from './presets.js';
 import { habitState } from './habits.js';
-import { isoWeekday, today as todayKey, weekDays, weekKey } from './date.js';
+import { isoWeekday, lastDays, today as todayKey, weekDays, weekKey } from './date.js';
 import { macroTargets, sumAlcohol, sumMeals } from './nutrition.js';
 
 /** Hoeveel dagen wil de gebruiker deze week trainen? Standaard 6 (§8.2). */
@@ -189,4 +189,36 @@ export function completedSessionsThisWeek(state, anchor = todayKey()) {
 
 export function needsCheckIn(state, anchor = todayKey()) {
   return !state.checkIns.some((c) => c.week === weekKey(anchor));
+}
+
+/* ------------------------------------------------------------ gezonde dagen */
+
+export function isHealthyDay(state, day) {
+  return (state.healthyDays ?? []).includes(day);
+}
+
+/**
+ * Markeringen voor de kalender: welke dagen zijn groen, en op welke dagen is
+ * er getraind (inclusief cardio en de minimale versie).
+ */
+export function calendarMarks(state) {
+  const marks = new Map();
+  const touch = (day) => {
+    if (!marks.has(day)) marks.set(day, { healthy: false, trained: false });
+    return marks.get(day);
+  };
+
+  for (const day of state.healthyDays ?? []) touch(day).healthy = true;
+  for (const s of state.sessions) {
+    if (s.status === 'voltooid' || s.status === 'minimaal') touch(s.day).trained = true;
+  }
+  for (const c of state.cardio) touch(c.day).trained = true;
+
+  return marks;
+}
+
+/** Aantal groene dagen in de laatste `days` dagen, inclusief vandaag. */
+export function healthyDayCount(state, days = 30, anchor = todayKey()) {
+  const window = new Set(lastDays(days, anchor));
+  return (state.healthyDays ?? []).filter((d) => window.has(d)).length;
 }

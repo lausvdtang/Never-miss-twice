@@ -71,6 +71,7 @@ Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
    │  • Never-miss-twice-interventie (max. 1 tegelijk)    │
    │  • Primaire actie: "Start Push A"                    │
    │  • Kcal-ring + eiwitbalk, knoppen + Eten / + Biertje │
+   │  • Agenda: groene dagen + stipje op trainingsdagen   │
    │  • Afvinklijst, supplementen, stappen                │
    └───┬───────────┬───────────┬───────────┬──────────────┘
        │           │           │           │
@@ -99,11 +100,30 @@ Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
 | Biertje loggen | 2 — `+ Biertje` → preset |
 | Supplement afvinken | 1 |
 | Gewoonte afvinken | 1 |
+| Dag op groen zetten | 1 (ook een dag terug, direct in de agenda) |
 | Set afvinken in de sportschool | 1 (gewicht en reps staan al voorgevuld) |
 | Hele oefening afvinken | 1 |
+| Gewicht invoeren | 1 tik + typen, of +/- ingedrukt houden |
+| Oefening vervangen | 3 — `⋯` → `Vervang` → kiezen |
+| Iets anders gedaan loggen | 2 — `Iets anders gedaan` → suggestie |
 | Slechte dag redden | 2 — `Even geen dag` → bevestigen |
 
 Tijdens een actieve sessie verdwijnt de tabbalk: één taak per scherm.
+
+### Getallen invoeren
+
+Een gewicht van 0 naar 80 kg met stapjes van 2,5 kg zou 32 losse tikken kosten.
+Daarom kan het op twee manieren:
+
+- **Tik op het getal** en typ het in. Op mobiel komt er een cijfertoetsenbord op
+  (`inputmode="decimal"`), en het stippellijntje onder het getal laat zien dat
+  het aantikbaar is.
+- **Houd +/- ingedrukt.** Na 420 ms loopt hij door en versnelt tot ~55 ms per
+  stap — zo'n 15 stappen in anderhalve seconde.
+
+Tijdens het vasthouden gaat er niets naar de opslag: dat zou het scherm
+opnieuw opbouwen en de knop onder je vinger weghalen. De tussenstand staat
+direct in beeld en wordt bij loslaten in één keer vastgelegd.
 
 ---
 
@@ -145,6 +165,7 @@ GEWOONTES
                      actieve dagen, autoSource
   HabitLog ───────── gewoonte, dag, vol|minimaal
   ImplementationIntention ── als-trigger, dan-actie
+  healthyDays ────── lijst dagen die je zelf op groen hebt gezet
 
 WEEK
   WeeklyCheckIn ──── week, haalbare dagen, energie, aanpassing
@@ -167,7 +188,14 @@ Twee ontwerpkeuzes die het gebruik merkbaar veranderen:
 
 - Onboarding, profiel en macrodoelen (recomp / lean bulk / cut)
 - Volledig 6-daags PPL met automatische afschaling naar 5, 4 of 3 dagen
-- Sessie loggen met +/- steppers en progressive-overload-voorstellen
+- Sessie loggen met tik-om-te-typen, vasthouden om door te lopen, en
+  progressive-overload-voorstellen
+- Sessie ter plekke aanpassen: oefening vervangen, toevoegen, weghalen, set
+  erbij — plus "iets anders gedaan" voor alles buiten het schema
+- Voortgang per training: volume per sessie als staafgrafiek met
+  procentuele verandering, en per oefening het verloop van je werkgewicht
+- Agenda op het beginscherm: dagen op groen zetten (ook terugwerkend), met
+  een stipje op de dagen waarop je getraind hebt
 - "Even geen dag"-knop en minimale versies
 - Cardio los van het krachtschema, inclusief interference-waarschuwing
 - Eten loggen met presets, zelf toevoegen, 80/20-weekbalans
@@ -238,6 +266,7 @@ app/
   presets.js        de kennisbasis
   nutrition.js      macro's, fase-offsets, 80/20
   training.js       progressive overload, schemakeuze
+  progress.js       volume per sessie, verloop per oefening
   habits.js         streaks en never-miss-twice
   body.js           weeglimiet, trend, coachingdrempels
   selectors.js      afgeleide gegevens over modules heen
@@ -263,9 +292,16 @@ bestandsnamen — cache-first zou een update dus nooit binnenhalen.
 overzicht (de browser maakt de PDF, zodat er niets het apparaat verlaat), en een
 volledige JSON-back-up die je weer kunt terugzetten.
 
+**Grafieken.** De staven lopen vanaf nul, zoals het hoort — maar daardoor zie
+je een stijging van 8% nauwelijks aan de hoogtes. De procentuele verandering
+staat er daarom als getal naast: die beantwoordt "doe ik steeds meer?" zonder
+de grafiek scheef te trekken. Volume telt alleen het gewicht dat je extra
+tilt, dus een sessie met puur lichaamsgewicht komt op nul uit; dat meldt de
+app expliciet in plaats van "100% minder" te tonen.
+
 ### Tests
 
-73 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
+93 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
 browser laadt — er is geen aparte bouw voor tests:
 
 - `habits.test.js` — streaks, veerkracht bij één misser, de omslag naar
@@ -276,4 +312,6 @@ browser laadt — er is geen aparte bouw voor tests:
   elk schema elke spiergroep ≥2× per week traint
 - `body.test.js` — de 1×-per-week-grens, voortschrijdend gemiddelde en de
   coachingdrempels
+- `progress.test.js` — volume per schema, verloop per oefening, en dat een
+  lichaamsgewicht-sessie geen "100% minder" oplevert
 - `store.test.js` — dat elke wijziging een nieuwe root-referentie oplevert

@@ -1,12 +1,22 @@
 import { el, when } from '../dom.js';
 import { ALCOHOL_PRESETS, MINIMAL_VERSION_TEXT } from '../presets.js';
-import { formatDay, greeting, today } from '../date.js';
+import {
+  addMonths,
+  formatDay,
+  formatDayShort,
+  formatMonth,
+  greeting,
+  today,
+} from '../date.js';
 import { collectNudges, completionMessage } from '../habits.js';
 import { go } from '../nav.js';
 import { macroTargets } from '../nutrition.js';
 import {
+  calendarMarks,
   dailyTotals,
   habitStates,
+  healthyDayCount,
+  isHealthyDay,
   needsCheckIn,
   planForDay,
   stepsOn,
@@ -18,6 +28,7 @@ import {
   badge,
   bar,
   button,
+  calendar,
   card,
   cardTitle,
   check,
@@ -30,6 +41,14 @@ import {
 } from '../ui.js';
 import { openAlcoholSheet, openFoodSheet } from './sheets.js';
 import { startSession } from './training.js';
+
+/** Welke maand de agenda toont. Blijft staan tussen hertekeningen door. */
+let visibleMonth = today();
+let rerender = () => {};
+
+export function setTodayRerender(fn) {
+  rerender = fn;
+}
 
 export function renderToday() {
   const state = getState();
@@ -47,6 +66,7 @@ export function renderToday() {
     plan.session?.status === 'voltooid' || plan.session?.status === 'minimaal';
   const restDay = !plan.template;
   const kcalLeft = targets.kcal - totals.kcal;
+  const healthyToday = isHealthyDay(state, day);
 
   /* ------------------------------------------------------- acties */
 
@@ -95,6 +115,29 @@ export function renderToday() {
     update((s) => {
       s.dismissedNudges = [...s.dismissedNudges, key];
     });
+  }
+
+  /**
+   * Groene dag aan of uit. Werkt ook op eerdere dagen: vergeten invullen hoort
+   * erbij en mag geen reden zijn om het maar helemaal te laten.
+   */
+  function toggleHealthy(target) {
+    const current = state.healthyDays ?? [];
+    const on = current.includes(target);
+    update((s) => {
+      s.healthyDays = on
+        ? current.filter((d) => d !== target)
+        : [...current, target].sort();
+    });
+    if (!on) {
+      tapFeedback(state.settings.celebrate);
+      toast(
+        target === day
+          ? 'Ik ben iemand die goed voor zichzelf eet.'
+          : `${formatDayShort(target)} op groen gezet.`,
+        true,
+      );
+    }
   }
 
   /** "Even geen dag": de sessie wordt de minimale versie, nooit een misser. */
@@ -355,6 +398,45 @@ export function renderToday() {
               state.settings.alcoholRecoveryHint,
             ),
         }),
+      ),
+    ),
+
+    /*
+      Agenda met groene dagen. Eén tap per dag, ook terugwerkend, en een
+      stipje op de dagen waarop getraind is. Geen rood voor een niet-groene
+      dag: dat is gewoon een dag zonder markering.
+    */
+    card(
+      null,
+      cardTitle(
+        el('p', { class: 'eyebrow' }, 'Gezond gegeten'),
+        badge(`${healthyDayCount(state, 30)}× in 30 dagen`, 'accent'),
+      ),
+      button(healthyToday ? '✓ Vandaag staat op groen' : 'Vandaag helemaal gezond gegeten', {
+        variant: healthyToday ? 'ghost block' : 'primary lg block',
+        onclick: () => toggleHealthy(day),
+      }),
+      calendar({
+        monthAnchor: visibleMonth,
+        marks: calendarMarks(state),
+        today: day,
+        monthLabel: formatMonth(visibleMonth),
+        onToggle: toggleHealthy,
+        onPrev: () => {
+          visibleMonth = addMonths(visibleMonth, -1);
+          rerender();
+        },
+        onNext: () => {
+          visibleMonth = addMonths(visibleMonth, 1);
+          rerender();
+        },
+      }),
+      el(
+        'div',
+        { class: 'row wrap faint' },
+        el('span', { class: 'legend' }, el('span', { class: 'legend-swatch healthy' }), 'gezond'),
+        el('span', { class: 'legend' }, el('span', { class: 'legend-swatch dot' }), 'getraind'),
+        el('span', {}, 'Tik een dag aan om hem alsnog groen te maken.'),
       ),
     ),
 

@@ -84,6 +84,23 @@ export function daysBetween(a, b) {
   return Math.round((parseDay(b).getTime() - parseDay(a).getTime()) / 86400000);
 }
 
+/** De laatste `n` dagen tot en met `key`, oudste eerst. */
+export function lastDays(n, key = today()) {
+  return Array.from({ length: n }, (_, i) => addDays(key, -(n - 1 - i)));
+}
+
+/** Verschuift een maand vooruit of achteruit; klapt netjes over de jaargrens. */
+export function addMonths(key, delta) {
+  const d = parseDay(key);
+  // Eerst naar de 1e: anders wordt 31 maart min één maand een datum in maart.
+  return dayKey(new Date(d.getFullYear(), d.getMonth() + delta, 1));
+}
+
+export function formatMonth(key) {
+  const d = parseDay(key);
+  return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+}
+
 export function formatDay(key) {
   const d = parseDay(key);
   return `${DAY_NAMES_LONG[isoWeekday(key) - 1]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;

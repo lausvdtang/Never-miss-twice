@@ -1,5 +1,5 @@
 import { classNames, clear, el, svg } from './dom.js';
-import { nl } from './date.js';
+import { DAY_NAMES, dayKey, isoWeekday, nl, parseDay } from './date.js';
 
 /* ----------------------------------------------------------------- toast */
 
@@ -114,6 +114,130 @@ export function cardTitle(...children) {
 
 /* --------------------------------------------------------------- stepper */
 
+/**
+ * Ingedrukt houden blijft ophogen, steeds sneller.
+ *
+ * Zonder dit kost 80 kg invoeren vanaf nul 32 losse tikken. De vertraging van
+ * 420 ms zorgt dat een gewone tik nooit per ongeluk doorloopt.
+ *
+ * Tijdens het vasthouden schrijven we bewust níét naar de store: elke
+ * schrijfactie bouwt het scherm opnieuw op, waardoor deze knop verdwijnt
+ * terwijl de timer doorloopt — dan blijft de teller eindeloos doortellen.
+ * We tonen de tussenstand rechtstreeks in het DOM en leggen pas bij loslaten
+ * één keer vast.
+ */
+function attachHoldRepeat(node, { preview, commit }) {
+  let timer = null;
+  let held = false;
+
+  const stop = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    if (held) {
+      commit();
+      // De klik die na het loslaten volgt hoort niet nóg een stap te zetten.
+      node.dataset.heldRelease = '1';
+      held = false;
+    }
+  };
+
+  node.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    let delay = 300;
+    const tick = () => {
+      held = true;
+      preview();
+      delay = Math.max(55, delay * 0.75);
+      timer = setTimeout(tick, delay);
+    };
+    timer = setTimeout(tick, 420);
+  });
+
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) {
+    node.addEventListener(ev, stop);
+  }
+}
+
+/** Klik negeren als hij het staartje van een vasthoudactie is. */
+function consumedByHold(node) {
+  if (node.dataset.heldRelease) {
+    delete node.dataset.heldRelease;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Getal dat je kunt aantikken om het gewoon in te typen.
+ *
+ * Dit is de snelste weg naar een willekeurig gewicht: één tik, typen, klaar.
+ * De +/- knoppen blijven voor kleine bijstellingen.
+ */
+export function editableNumber({ value, onChange, format, unit, ariaLabel, className = 'val' }) {
+  let current = value;
+  const label = () =>
+    format ? format(current) : Number.isInteger(current) ? String(current) : nl(current);
+
+  // Losse tekstnode zodat de tussenstand bijgewerkt kan worden zonder het
+  // element (en dus de lopende aanraking) te vervangen.
+  const text = document.createTextNode(label());
+
+  const node = el(
+    'button',
+    {
+      type: 'button',
+      class: `${className} editable`,
+      'aria-label': `${ariaLabel}: ${label()}. Tik om te typen.`,
+    },
+    text,
+    unit ? el('small', {}, ` ${unit}`) : null,
+  );
+
+  /** Toont een waarde zonder hem vast te leggen. */
+  node.preview = (v) => {
+    current = v;
+    text.data = label();
+    node.setAttribute('aria-label', `${ariaLabel}: ${label()}. Tik om te typen.`);
+  };
+
+  node.addEventListener('click', () => {
+    const input = el('input', {
+      class: `${className} inline-num`,
+      type: 'text',
+      // Levert op mobiel een cijfertoetsenbord met komma.
+      inputmode: 'decimal',
+      value: Number.isInteger(value) ? String(value) : nl(value),
+      'aria-label': ariaLabel,
+    });
+
+    node.replaceWith(input);
+    input.focus();
+    input.select();
+
+    let committed = false;
+    const commit = () => {
+      if (committed) return;
+      committed = true;
+      const parsed = parseFloat(input.value.replace(',', '.'));
+      if (!Number.isNaN(parsed) && parsed !== current) onChange(parsed);
+      // Niets ingevuld of niets veranderd: gewoon de knop terugzetten, zonder
+      // een schrijfactie naar de store.
+      else if (input.isConnected) input.replaceWith(node);
+    };
+
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') {
+        input.value = String(value);
+        input.blur();
+      }
+    });
+  });
+
+  return node;
+}
+
 export function stepper({
   value,
   onChange,
@@ -124,55 +248,80 @@ export function stepper({
   format,
   label,
 }) {
-  const clamp = (v) => Math.min(max, Math.max(min, Math.round(v * 100) / 100));
-  return el(
-    'div',
-    { class: 'stepper', role: 'group', 'aria-label': label },
-    el(
-      'button',
-      { type: 'button', 'aria-label': 'Minder', onclick: () => onChange(clamp(value - step)) },
-      '−',
-    ),
-    el(
-      'div',
-      { class: 'stepper-value' },
-      format ? format(value) : String(value),
-      unit ? el('span', { class: 'unit' }, unit) : null,
-    ),
-    el(
-      'button',
-      { type: 'button', 'aria-label': 'Meer', onclick: () => onChange(clamp(value + step)) },
-      '+',
-    ),
-  );
+  return buildStepper({
+    value,
+    onChange,
+    step,
+    clamp: (v) => Math.min(max, Math.max(min, Math.round(v * 100) / 100)),
+    ariaLabel: label,
+    wrapperClass: 'stepper',
+    valueNode: (node) => el('div', { class: 'stepper-value' }, node, unit ? el('span', { class: 'unit' }, unit) : null),
+    numberOptions: { format, className: 'stepper-num' },
+  });
 }
 
 /** Compacte variant voor set-regels: +/- direct naast de waarde. */
 export function miniStepper({ value, onChange, step = 1, min = 0, unit, ariaLabel }) {
-  const clamp = (v) => Math.max(min, Math.round(v * 100) / 100);
-  const display = Number.isInteger(value) ? String(value) : nl(value);
+  return buildStepper({
+    value,
+    onChange,
+    step,
+    clamp: (v) => Math.max(min, Math.round(v * 100) / 100),
+    ariaLabel,
+    wrapperClass: 'mini-step',
+    valueNode: (node) => node,
+    numberOptions: { unit },
+  });
+}
+
+/** Gedeelde opbouw: tikken zet één stap, vasthouden loopt door. */
+function buildStepper({
+  value,
+  onChange,
+  step,
+  clamp,
+  ariaLabel,
+  wrapperClass,
+  valueNode,
+  numberOptions,
+}) {
+  // Eén bron van waarheid tijdens de interactie; de store volgt bij het
+  // vastleggen.
+  let current = value;
+
+  const number = editableNumber({
+    value,
+    onChange: (v) => onChange(clamp(v)),
+    ariaLabel,
+    ...numberOptions,
+  });
+
+  const makeButton = (label, delta) => {
+    const btn = el('button', { type: 'button', 'aria-label': `${ariaLabel} ${label}` }, delta < 0 ? '−' : '+');
+
+    btn.addEventListener('click', () => {
+      if (consumedByHold(btn)) return;
+      current = clamp(current + delta);
+      onChange(current);
+    });
+
+    attachHoldRepeat(btn, {
+      preview: () => {
+        current = clamp(current + delta);
+        number.preview(current);
+      },
+      commit: () => onChange(current),
+    });
+
+    return btn;
+  };
+
   return el(
     'div',
-    { class: 'mini-step', role: 'group', 'aria-label': ariaLabel },
-    el(
-      'button',
-      {
-        type: 'button',
-        'aria-label': `${ariaLabel} minder`,
-        onclick: () => onChange(clamp(value - step)),
-      },
-      '−',
-    ),
-    el('div', { class: 'val' }, display, unit ? el('small', {}, ` ${unit}`) : null),
-    el(
-      'button',
-      {
-        type: 'button',
-        'aria-label': `${ariaLabel} meer`,
-        onclick: () => onChange(clamp(value + step)),
-      },
-      '+',
-    ),
+    { class: wrapperClass, role: 'group', 'aria-label': ariaLabel },
+    makeButton('minder', -step),
+    valueNode(number),
+    makeButton('meer', step),
   );
 }
 
@@ -293,6 +442,143 @@ export function streakStrip(days) {
           d.beforeStart && 'before',
         ]),
         title: d.day,
+      }),
+    ),
+  );
+}
+
+/* -------------------------------------------------------------- grafieken */
+
+/**
+ * Kleine lijngrafiek zonder assen — bedoeld om in één oogopslag te zien of de
+ * lijn omhoog loopt, niet om exacte waarden af te lezen.
+ */
+export function sparkline(values, { width = 132, height = 34, color = 'var(--accent)' } = {}) {
+  if (values.length < 2) {
+    return el('p', { class: 'faint' }, 'Nog te weinig sessies voor een lijn.');
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const pad = 4;
+
+  const x = (i) => pad + (i / (values.length - 1)) * (width - pad * 2);
+  const y = (v) => pad + (1 - (v - min) / span) * (height - pad * 2);
+
+  const path = values.map((v, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+  const last = values[values.length - 1];
+
+  return svg(
+    'svg',
+    {
+      class: 'sparkline',
+      viewBox: `0 0 ${width} ${height}`,
+      preserveAspectRatio: 'none',
+      role: 'img',
+      'aria-label': `Verloop, laatste waarde ${nl(last)}`,
+    },
+    svg('path', {
+      d: path,
+      fill: 'none',
+      stroke: color,
+      'stroke-width': 2,
+      'stroke-linecap': 'round',
+      'stroke-linejoin': 'round',
+    }),
+    svg('circle', { cx: x(values.length - 1), cy: y(last), r: 2.8, fill: color }),
+  );
+}
+
+/**
+ * Grotere staafgrafiek voor het volume per sessie van één schema.
+ * Staven in plaats van een lijn: sessies zijn losse momenten, geen continu
+ * verloop, en een staaf leest sneller af of er meer of minder is gedaan.
+ */
+export function barChart(items, { height = 120, color = 'var(--accent)', formatValue } = {}) {
+  if (items.length === 0) {
+    return el('p', { class: 'empty' }, 'Nog geen sessies om te vergelijken.');
+  }
+
+  const max = Math.max(...items.map((i) => i.value)) || 1;
+
+  return el(
+    'div',
+    { class: 'bar-chart', style: { height: `${height}px` }, role: 'img', 'aria-label': 'Volume per sessie' },
+    ...items.map((item) =>
+      el(
+        'div',
+        { class: 'bar-col', title: `${item.label}: ${formatValue ? formatValue(item.value) : item.value}` },
+        el('div', {
+          class: classNames(['bar-col-fill', item.highlight && 'now']),
+          style: {
+            height: `${Math.max(3, (item.value / max) * 100)}%`,
+            background: item.highlight ? 'var(--accent)' : color,
+          },
+        }),
+        el('span', { class: 'bar-col-label' }, item.label),
+      ),
+    ),
+  );
+}
+
+/* ---------------------------------------------------------------- agenda */
+
+/**
+ * Maandkalender voor het beginscherm.
+ *
+ * Groen = die dag als gezond gemarkeerd. Een stipje = die dag getraind.
+ * Elke dag is aantikbaar, ook een dag terug: vergeten invullen hoort erbij en
+ * mag geen reden zijn om het maar helemaal te laten.
+ */
+export function calendar({ monthAnchor, marks, onToggle, today, onPrev, onNext, monthLabel }) {
+  const d = parseDay(monthAnchor);
+  const year = d.getFullYear();
+  const month = d.getMonth();
+
+  const firstKey = dayKey(new Date(year, month, 1));
+  const lead = isoWeekday(firstKey) - 1; // 0 = maandag
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < lead; i++) cells.push(null);
+  for (let i = 1; i <= daysInMonth; i++) cells.push(dayKey(new Date(year, month, i)));
+
+  return el(
+    'div',
+    { class: 'calendar' },
+    el(
+      'div',
+      { class: 'calendar-head' },
+      el('button', { class: 'btn quiet sm', 'aria-label': 'Vorige maand', onclick: onPrev }, '‹'),
+      el('span', { class: 'calendar-month' }, monthLabel),
+      el('button', { class: 'btn quiet sm', 'aria-label': 'Volgende maand', onclick: onNext }, '›'),
+    ),
+    el(
+      'div',
+      { class: 'calendar-grid' },
+      ...DAY_NAMES.map((n) => el('span', { class: 'calendar-dow' }, n)),
+      ...cells.map((key) => {
+        if (!key) return el('span', { class: 'calendar-cell empty-cell' });
+        const mark = marks.get(key) ?? {};
+        const future = key > today;
+        return el(
+          'button',
+          {
+            class: classNames([
+              'calendar-cell',
+              mark.healthy && 'healthy',
+              key === today && 'is-today',
+              future && 'future',
+            ]),
+            disabled: future,
+            'aria-label': `${key}${mark.healthy ? ', gezond gegeten' : ''}${mark.trained ? ', getraind' : ''}`,
+            'aria-pressed': mark.healthy ? 'true' : 'false',
+            onclick: () => onToggle(key),
+          },
+          String(parseDay(key).getDate()),
+          mark.trained ? el('span', { class: 'calendar-dot' }) : null,
+        );
       }),
     ),
   );
