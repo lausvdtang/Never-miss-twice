@@ -1,4 +1,4 @@
-import { classNames, clear, el, svg } from './dom.js';
+import { classNames, clear, createScheduler, el, preserveFocus, svg } from './dom.js';
 import { DAY_NAMES, dayKey, isoWeekday, nl, parseDay } from './date.js';
 
 /* ----------------------------------------------------------------- toast */
@@ -33,8 +33,17 @@ function ensureSheetHost() {
   return sheetHost;
 }
 
-function drawSheet() {
+// Zelfde verhaal als bij het hoofdscherm: het leegmaken blurt een veld, de
+// blur legt de waarde vast, en dat zou hier middenin een nieuwe tekenbeurt
+// starten.
+const drawSheet = createScheduler(() => {
   const host = ensureSheetHost();
+  // Focus vasthouden: een venster hertekent bij elke stap, en dan wil je niet
+  // uit het veld geduwd worden waar je in staat te typen.
+  preserveFocus(host, () => drawSheetInner(host));
+});
+
+function drawSheetInner(host) {
   clear(host);
 
   if (!activeSheet) {
@@ -168,71 +177,65 @@ function consumedByHold(node) {
 }
 
 /**
- * Getal dat je kunt aantikken om het gewoon in te typen.
+ * Getalveld waar je gewoon in kunt typen.
  *
- * Dit is de snelste weg naar een willekeurig gewicht: één tik, typen, klaar.
- * De +/- knoppen blijven voor kleine bijstellingen.
+ * Bewust een echt invoerveld en geen knop die er pas eentje wórdt: één tik en
+ * je toetsenbord staat open. De +/- knoppen blijven ernaast staan voor kleine
+ * bijstellingen.
  */
 export function editableNumber({ value, onChange, format, unit, ariaLabel, className = 'val' }) {
   let current = value;
   const label = () =>
     format ? format(current) : Number.isInteger(current) ? String(current) : nl(current);
 
-  // Losse tekstnode zodat de tussenstand bijgewerkt kan worden zonder het
-  // element (en dus de lopende aanraking) te vervangen.
-  const text = document.createTextNode(label());
+  const node = el('input', {
+    type: 'text',
+    // Levert op mobiel een cijfertoetsenbord met komma.
+    inputmode: 'decimal',
+    enterkeyhint: 'done',
+    class: `${className} num-input`,
+    value: label(),
+    'aria-label': ariaLabel,
+    // Sleutel waarop de focus teruggezet wordt na een hertekening.
+    'data-focus-key': ariaLabel,
+  });
 
-  const node = el(
-    'button',
-    {
-      type: 'button',
-      class: `${className} editable`,
-      'aria-label': `${ariaLabel}: ${label()}. Tik om te typen.`,
-    },
-    text,
-    unit ? el('small', {}, ` ${unit}`) : null,
-  );
+  if (unit) node.setAttribute('data-unit', unit);
 
-  /** Toont een waarde zonder hem vast te leggen. */
+  /** Toont een waarde zonder hem vast te leggen (voor ingedrukt houden). */
   node.preview = (v) => {
     current = v;
-    text.data = label();
-    node.setAttribute('aria-label', `${ariaLabel}: ${label()}. Tik om te typen.`);
+    node.value = label();
   };
 
-  node.addEventListener('click', () => {
-    const input = el('input', {
-      class: `${className} inline-num`,
-      type: 'text',
-      // Levert op mobiel een cijfertoetsenbord met komma.
-      inputmode: 'decimal',
-      value: Number.isInteger(value) ? String(value) : nl(value),
-      'aria-label': ariaLabel,
-    });
+  /*
+   * Typen vervangt de waarde; je hoeft de oude niet eerst weg te halen.
+   *
+   * Bewust alleen hier en niet ook nog een ronde later: een uitgestelde
+   * selectie kan afgaan terwijl er al getypt wordt, en gooit dan de eerste
+   * ingetikte cijfers weg. Tikken op een veld dat de focus al heeft, zet
+   * gewoon de cursor neer — precies wat je wilt als je één cijfer bijwerkt.
+   */
+  node.addEventListener('focus', () => node.select());
 
-    node.replaceWith(input);
-    input.focus();
-    input.select();
+  const commit = () => {
+    const parsed = parseFloat(node.value.replace(',', '.'));
+    if (!Number.isNaN(parsed) && parsed !== current) {
+      current = parsed;
+      onChange(parsed);
+    } else {
+      // Leeg of onveranderd: netjes terugzetten, zonder schrijfactie.
+      node.value = label();
+    }
+  };
 
-    let committed = false;
-    const commit = () => {
-      if (committed) return;
-      committed = true;
-      const parsed = parseFloat(input.value.replace(',', '.'));
-      if (!Number.isNaN(parsed) && parsed !== current) onChange(parsed);
-      // Niets ingevuld of niets veranderd: gewoon de knop terugzetten, zonder
-      // een schrijfactie naar de store.
-      else if (input.isConnected) input.replaceWith(node);
-    };
-
-    input.addEventListener('blur', commit);
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') input.blur();
-      if (e.key === 'Escape') {
-        input.value = String(value);
-        input.blur();
-      }
-    });
+  node.addEventListener('blur', commit);
+  node.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') node.blur();
+    if (e.key === 'Escape') {
+      node.value = label();
+      node.blur();
+    }
   });
 
   return node;
@@ -255,7 +258,8 @@ export function stepper({
     clamp: (v) => Math.min(max, Math.max(min, Math.round(v * 100) / 100)),
     ariaLabel: label,
     wrapperClass: 'stepper',
-    valueNode: (node) => el('div', { class: 'stepper-value' }, node, unit ? el('span', { class: 'unit' }, unit) : null),
+    valueNode: (node) =>
+      el('div', { class: 'stepper-value' }, node, unit ? el('span', { class: 'unit' }, unit) : null),
     numberOptions: { format, className: 'stepper-num' },
   });
 }
@@ -269,8 +273,11 @@ export function miniStepper({ value, onChange, step = 1, min = 0, unit, ariaLabe
     clamp: (v) => Math.max(min, Math.round(v * 100) / 100),
     ariaLabel,
     wrapperClass: 'mini-step',
-    valueNode: (node) => node,
-    numberOptions: { unit },
+    // De eenheid staat naast het veld, niet erin: anders moet je hem bij het
+    // typen steeds wegpoetsen.
+    valueNode: (node) =>
+      el('span', { class: 'val-wrap' }, node, unit ? el('small', {}, unit) : null),
+    numberOptions: {},
   });
 }
 
@@ -297,7 +304,19 @@ function buildStepper({
   });
 
   const makeButton = (label, delta) => {
-    const btn = el('button', { type: 'button', 'aria-label': `${ariaLabel} ${label}` }, delta < 0 ? '−' : '+');
+    const btn = el(
+      'button',
+      {
+        type: 'button',
+        'aria-label': `${ariaLabel} ${label}`,
+        // Buiten de tabvolgorde: zo springt Tab van veld naar veld in plaats
+        // van via twee knoppen per getal. Met het toetsenbord typ je de
+        // waarde toch rechtstreeks — die weg is niet alleen sneller maar ook
+        // ruimer, dus er gaat geen functie verloren.
+        tabindex: '-1',
+      },
+      delta < 0 ? '−' : '+',
+    );
 
     btn.addEventListener('click', () => {
       if (consumedByHold(btn)) return;
@@ -316,9 +335,11 @@ function buildStepper({
     return btn;
   };
 
+  // Geen aria-label op de wikkel: het invoerveld draagt het label al, en
+  // twee keer hetzelfde laten voorlezen helpt niemand.
   return el(
     'div',
-    { class: wrapperClass, role: 'group', 'aria-label': ariaLabel },
+    { class: wrapperClass },
     makeButton('minder', -step),
     valueNode(number),
     makeButton('meer', step),

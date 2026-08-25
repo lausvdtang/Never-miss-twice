@@ -80,7 +80,38 @@ export function frag(...children) {
 }
 
 export function clear(node) {
-  while (node.firstChild) node.removeChild(node.firstChild);
+  // `remove()` in plaats van `removeChild()`: het weghalen van een veld met
+  // focus vuurt een blur-afhandelaar, en die kan de DOM alweer aangepast
+  // hebben. `removeChild` gooit dan een fout, `remove()` doet niets.
+  while (node.firstChild) node.firstChild.remove();
+}
+
+/**
+ * Houdt de focus (en de cursorpositie) vast over een hertekening heen.
+ *
+ * Zonder dit springt het toetsenbord dicht zodra er elders iets verandert
+ * terwijl je in een veld staat te typen. Elementen worden teruggevonden op
+ * hun `data-focus-key`, die per veld uniek is.
+ */
+export function preserveFocus(container, mutate) {
+  const active = document.activeElement;
+  const inside = active && container.contains(active);
+  const key = inside ? active.getAttribute('data-focus-key') : null;
+  const start = key ? active.selectionStart : null;
+  const end = key ? active.selectionEnd : null;
+
+  mutate();
+
+  if (!key) return;
+  const restored = container.querySelector(`[data-focus-key="${CSS.escape(key)}"]`);
+  if (!restored) return;
+
+  restored.focus({ preventScroll: true });
+  try {
+    if (start !== null) restored.setSelectionRange(start, end);
+  } catch {
+    /* niet elk veldtype kent een selectie — dan is focus alleen genoeg */
+  }
 }
 
 /**
@@ -91,8 +122,12 @@ export function clear(node) {
  */
 export function replaceContent(container, node, { keepScroll = true } = {}) {
   const y = keepScroll ? window.scrollY : 0;
-  clear(container);
-  container.appendChild(node);
+
+  preserveFocus(container, () => {
+    clear(container);
+    container.appendChild(node);
+  });
+
   if (keepScroll && y > 0) {
     // Na de layoutronde terugzetten, anders is de pagina nog te kort.
     requestAnimationFrame(() => window.scrollTo(0, y));
@@ -102,4 +137,35 @@ export function replaceContent(container, node, { keepScroll = true } = {}) {
 /** Kleine helper voor voorwaardelijke onderdelen: `when(cond, () => el(…))`. */
 export function when(condition, build) {
   return condition ? build() : null;
+}
+
+/**
+ * Zorgt dat een tekenbeurt zichzelf niet kan onderbreken.
+ *
+ * Bij het leegmaken van het scherm verliest een invoerveld zijn focus, en de
+ * blur-afhandelaar legt de getypte waarde vast. Die schrijfactie zou meteen
+ * een nieuwe tekenbeurt starten, middenin de vorige — met een half opgebouwd
+ * scherm tot gevolg. Een tweede beurt wordt daarom vastgehouden tot de eerste
+ * klaar is, en daarna één keer gedraaid met de nieuwste gegevens.
+ */
+export function createScheduler(draw) {
+  let running = false;
+  let queued = false;
+
+  return function run() {
+    if (running) {
+      queued = true;
+      return;
+    }
+    running = true;
+    try {
+      draw();
+    } finally {
+      running = false;
+    }
+    if (queued) {
+      queued = false;
+      run();
+    }
+  };
 }

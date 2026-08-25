@@ -837,66 +837,66 @@ textarea.input {
   background: var(--surface-3);
 }
 
-.mini-step .val {
-  flex: 1;
+/*
+  Het getal is een echt invoerveld, geen knop die er eentje wordt: één tik en
+  je toetsenbord staat open. Het stippellijntje maakt zichtbaar dat je erin
+  kunt typen zonder dat het een zwaar omkaderd formulierveld wordt.
+*/
+.num-input {
+  border: none;
+  background: none;
+  border-bottom: 1px dashed var(--text-faint);
+  border-radius: 0;
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-weight: 620;
-  font-size: 0.95rem;
   min-width: 0;
-  height: 42px;
   padding: 0;
-  background: none;
+  -moz-appearance: textfield;
 }
 
-.mini-step .val small {
+.num-input:focus {
+  outline: none;
+  border-bottom-color: var(--accent);
+  border-bottom-style: solid;
+  background: var(--surface-3);
+  border-radius: 6px 6px 0 0;
+}
+
+.num-input::selection {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+/* Set-regels: veld en eenheid naast elkaar, samen even breed als voorheen. */
+.val-wrap {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+}
+
+.mini-step .val {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  font-size: 0.95rem;
+}
+
+.val-wrap small {
   color: var(--text-faint);
   font-weight: 500;
   font-size: 0.68rem;
-}
-
-/*
-  Aantikbaar getal: een stippellijntje eronder verraadt dat je het ook gewoon
-  kunt intypen. Zonder die hint blijft iedereen op +/- rammen.
-*/
-.editable {
-  border-bottom: 1px dashed var(--text-faint);
-  border-radius: 0;
-  cursor: text;
-}
-
-.editable:active {
-  opacity: 0.6;
-}
-
-.inline-num {
-  border: none;
-  background: var(--surface-3);
-  border-radius: 6px;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: 620;
-  width: 100%;
-  min-width: 0;
-  outline: 2px solid var(--accent);
-}
-
-.mini-step .inline-num {
-  flex: 1;
-  height: 42px;
-  font-size: 0.95rem;
+  flex-shrink: 0;
 }
 
 .stepper-num {
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
   font-size: 1.05rem;
-  padding: 0 2px;
-}
-
-.stepper-value .inline-num {
-  font-size: 1.05rem;
-  height: 34px;
+  width: 100%;
+  height: 26px;
 }
 
 /* ---------------------------------------------------------------- grafiek */

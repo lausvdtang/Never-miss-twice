@@ -23,7 +23,7 @@ Tests zijn het enige dat Node vraagt, en die staan los van de app zelf:
 
 ```bash
 npm install      # alleen vitest
-npm test         # 73 tests over de kernlogica
+npm test         # 98 tests over de kernlogica
 ```
 
 ### GitHub Pages
@@ -103,7 +103,7 @@ Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
 | Dag op groen zetten | 1 (ook een dag terug, direct in de agenda) |
 | Set afvinken in de sportschool | 1 (gewicht en reps staan al voorgevuld) |
 | Hele oefening afvinken | 1 |
-| Gewicht invoeren | 1 tik + typen, of +/- ingedrukt houden |
+| Gewicht invoeren | 1 tik + typen (of +/- ingedrukt houden) |
 | Oefening vervangen | 3 — `⋯` → `Vervang` → kiezen |
 | Iets anders gedaan loggen | 2 — `Iets anders gedaan` → suggestie |
 | Slechte dag redden | 2 — `Even geen dag` → bevestigen |
@@ -113,17 +113,31 @@ Tijdens een actieve sessie verdwijnt de tabbalk: één taak per scherm.
 ### Getallen invoeren
 
 Een gewicht van 0 naar 80 kg met stapjes van 2,5 kg zou 32 losse tikken kosten.
-Daarom kan het op twee manieren:
+Daarom is elk getal een **echt invoerveld**, geen knop die er pas eentje wordt:
 
-- **Tik op het getal** en typ het in. Op mobiel komt er een cijfertoetsenbord op
-  (`inputmode="decimal"`), en het stippellijntje onder het getal laat zien dat
-  het aantikbaar is.
-- **Houd +/- ingedrukt.** Na 420 ms loopt hij door en versnelt tot ~55 ms per
-  stap — zo'n 15 stappen in anderhalve seconde.
+- **Tik erop en typ.** Eén tik opent het toetsenbord (`inputmode="decimal"`,
+  dus cijfers met komma op mobiel) en selecteert meteen de hele waarde, zodat
+  typen hem vervangt in plaats van aanvult. Enter of ergens anders tikken legt
+  hem vast; Escape zet hem terug.
+- **Of houd +/- ingedrukt.** Na 420 ms loopt hij door en versnelt tot ~55 ms
+  per stap — zo'n 15 stappen in anderhalve seconde.
 
-Tijdens het vasthouden gaat er niets naar de opslag: dat zou het scherm
-opnieuw opbouwen en de knop onder je vinger weghalen. De tussenstand staat
-direct in beeld en wordt bij loslaten in één keer vastgelegd.
+Met Tab spring je van veld naar veld: gewicht → reps → afvinken → volgende set.
+De +/- knoppen staan bewust buiten de tabvolgorde, anders zaten er twee knoppen
+tussen elk getal. Er gaat niets verloren, want typen kan alles wat +/- kan.
+
+Drie dingen die daaronder geregeld moesten worden:
+
+- **Tijdens het vasthouden gaat er niets naar de opslag.** Elke schrijfactie
+  bouwt het scherm opnieuw op, waardoor de knop onder je vinger verdwijnt
+  terwijl de timer doorloopt. De tussenstand staat direct in beeld en wordt bij
+  loslaten in één keer vastgelegd.
+- **Een tekenbeurt kan zichzelf niet onderbreken.** Het leegmaken van het
+  scherm blurt het actieve veld, en die blur legt de getypte waarde vast — wat
+  middenin de lopende beurt een nieuwe zou starten. `createScheduler` houdt de
+  tweede beurt vast tot de eerste klaar is.
+- **De focus blijft staan over een hertekening heen**, inclusief cursorpositie,
+  zodat het toetsenbord niet dichtklapt terwijl je typt.
 
 ---
 
@@ -188,8 +202,9 @@ Twee ontwerpkeuzes die het gebruik merkbaar veranderen:
 
 - Onboarding, profiel en macrodoelen (recomp / lean bulk / cut)
 - Volledig 6-daags PPL met automatische afschaling naar 5, 4 of 3 dagen
-- Sessie loggen met tik-om-te-typen, vasthouden om door te lopen, en
-  progressive-overload-voorstellen
+- Sessie loggen: getallen zijn invoervelden waar je direct in typt, +/- houdt
+  je ingedrukt voor bijstellen, en progressive-overload-voorstellen staan al
+  ingevuld
 - Sessie ter plekke aanpassen: oefening vervangen, toevoegen, weghalen, set
   erbij — plus "iets anders gedaan" voor alles buiten het schema
 - Voortgang per training: volume per sessie als staafgrafiek met
@@ -258,7 +273,7 @@ styles.css          CSS-variabelen voor donker en licht
 sw.js               service worker (offline)
 app/
   main.js           routering, hertekenen, service worker
-  dom.js            el() / svg() helpers en het hertekenen met scrollbehoud
+  dom.js            el() / svg(), hertekenen met scroll- en focusbehoud
   ui.js             kaarten, steppers, ringen, vensters, toasts
   nav.js            hash-routing
   store.js          state + localStorage + IndexedDB voor foto's
@@ -301,7 +316,7 @@ app expliciet in plaats van "100% minder" te tonen.
 
 ### Tests
 
-93 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
+98 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
 browser laadt — er is geen aparte bouw voor tests:
 
 - `habits.test.js` — streaks, veerkracht bij één misser, de omslag naar
@@ -314,4 +329,6 @@ browser laadt — er is geen aparte bouw voor tests:
   coachingdrempels
 - `progress.test.js` — volume per schema, verloop per oefening, en dat een
   lichaamsgewicht-sessie geen "100% minder" oplevert
+- `scheduler.test.js` — dat een hertekening die zichzelf uitlokt netjes
+  achteraan aansluit in plaats van de lopende beurt te onderbreken
 - `store.test.js` — dat elke wijziging een nieuwe root-referentie oplevert

@@ -1,4 +1,4 @@
-import { el, replaceContent } from './dom.js';
+import { createScheduler, el, replaceContent } from './dom.js';
 import { TABS, currentRoute, go, initNav, onNavigate } from './nav.js';
 import { getState, subscribe } from './store.js';
 import { isSheetOpen, refreshSheet } from './ui.js';
@@ -59,7 +59,7 @@ function tabbar(route) {
   );
 }
 
-function render() {
+function draw() {
   const state = getState();
 
   // Thema: expliciete keuze wint, anders volgt de app het systeem.
@@ -89,6 +89,9 @@ function render() {
   // Een open venster leest ook uit de store; die moet dus mee verversen.
   if (isSheetOpen()) refreshSheet();
 }
+
+/** Hertekenen mag zichzelf niet onderbreken; zie createScheduler. */
+const render = createScheduler(draw);
 
 setOnboardingRerender(render);
 setTodayRerender(render);
