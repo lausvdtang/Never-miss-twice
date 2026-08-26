@@ -6,7 +6,7 @@ import { changeLabel, progressSummary, topWeightSeries, volumeSeries } from '../
 import { getState, newId, nowISO, update } from '../store.js';
 import {
   formatWeight,
-  lastSetsFor,
+  lastPerformanceFor,
   sessionDurationMinutes,
   sessionVolume,
   suggestNext,
@@ -26,6 +26,11 @@ import {
   tapFeedback,
   toast,
 } from '../ui.js';
+
+/** Hele kilo's zonder decimaal: "80×6" leest sneller dan "80,0×6". */
+function kgLabel(value) {
+  return Number.isInteger(value) ? String(value) : nl(value);
+}
 
 /**
  * Actieve sessie. Elke set is één tap om af te vinken; gewicht en reps staan al
@@ -71,7 +76,16 @@ export function renderSession(sessionId) {
     update((s) => {
       s.sessions = s.sessions.map((x) =>
         x.id === sessionId
-          ? { ...x, sets: x.sets.map((set) => (set.id === setId ? { ...set, ...patch } : set)) }
+          ? {
+              ...x,
+              sets: x.sets.map((set) =>
+                set.id === setId
+                  ? // Zodra jij eraan zit, is het geen voorstel meer maar wat
+                    // je werkelijk gedaan hebt — en dus geschiedenis.
+                    { ...set, ...patch, seeded: false }
+                  : set,
+              ),
+            }
           : x,
       );
     });
@@ -90,7 +104,9 @@ export function renderSession(sessionId) {
           ? {
               ...x,
               sets: x.sets.map((set) =>
-                set.exerciseName === name ? { ...set, done: true, loggedAt: nowISO() } : set,
+                set.exerciseName === name
+                  ? { ...set, done: true, seeded: false, loggedAt: nowISO() }
+                  : set,
               ),
             }
           : x,
@@ -419,8 +435,8 @@ export function renderSession(sessionId) {
 
           ...grouped.map(({ name, sets }) => {
             const exercise = template?.exercises.find((e) => e.name === name);
-            const previous = lastSetsFor(name, state.sessions, sessionId);
-            const suggestion = exercise ? suggestNext(exercise, previous) : null;
+            const previous = lastPerformanceFor(name, state.sessions, sessionId);
+            const suggestion = exercise ? suggestNext(exercise, previous?.sets ?? []) : null;
             const allDone = sets.every((s) => s.done);
             const trendPoints = topWeightSeries(state.sessions, name).filter(
               (p) => p.day !== session.day,
@@ -451,29 +467,51 @@ export function renderSession(sessionId) {
                 ),
               ),
 
-              /* Verloop van het zwaarste werkgewicht over eerdere sessies. */
-              when(trendPoints.length >= 2, () =>
-                el(
-                  'div',
-                  { class: 'row-between' },
-                  sparkline(trendPoints.map((p) => p.weightKg)),
+              /*
+                Wat deed je vorige keer? Set voor set, zodat je het niet hoeft
+                op te zoeken — en met het verloop ernaast zodra er meer dan
+                één sessie is om te vergelijken.
+              */
+              when(!!previous && !readOnly, () =>
+                card(
+                  'flat',
                   el(
-                    'span',
-                    { class: 'faint' },
-                    `${nl(trendPoints[0].weightKg)} → ${nl(
-                      trendPoints[trendPoints.length - 1].weightKg,
-                    )} kg`,
+                    'div',
+                    { class: 'row-between' },
+                    el('span', { class: 'eyebrow' }, `Vorige keer · ${formatDayShort(previous.day)}`),
+                    when(suggestion?.isIncrease, () => badge(`+${WEIGHT_STEP} kg`, 'accent')),
                   ),
-                ),
-              ),
-
-              /* Progressive overload: vorige sessie naast het invoerveld. */
-              when(!!suggestion && !readOnly, () =>
-                el(
-                  'div',
-                  { class: 'row-between' },
-                  el('span', { class: 'faint' }, suggestion.previous ?? 'Nog geen eerdere sessie'),
-                  when(suggestion.isIncrease, () => badge(`+${WEIGHT_STEP} kg`, 'accent')),
+                  el(
+                    'div',
+                    { class: 'row-between' },
+                    el(
+                      'span',
+                      { class: 'prev-sets' },
+                      previous.sets
+                        .map((s) =>
+                          // "lg" = op lichaamsgewicht, zonder extra gewicht.
+                          s.weightKg === 0
+                            ? `lg×${s.reps}`
+                            : `${kgLabel(s.weightKg)}×${s.reps}`,
+                        )
+                        .join('  ·  '),
+                    ),
+                    when(trendPoints.length >= 2, () =>
+                      sparkline(trendPoints.map((p) => p.weightKg)),
+                    ),
+                  ),
+                  when(trendPoints.length >= 2, () =>
+                    el(
+                      'span',
+                      { class: 'faint' },
+                      `${kgLabel(trendPoints[0].weightKg)} → ${kgLabel(
+                        trendPoints[trendPoints.length - 1].weightKg,
+                      )} kg over ${trendPoints.length} sessies`,
+                    ),
+                  ),
+                  when(!previous.confirmed, () =>
+                    el('span', { class: 'faint' }, 'Niet afgevinkt, wel ingevuld.'),
+                  ),
                 ),
               ),
               when(!!suggestion && !readOnly, () =>

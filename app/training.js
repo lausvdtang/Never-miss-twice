@@ -4,18 +4,42 @@ import { hoursSince, nl } from './date.js';
 /** Kleinste praktische sprong in de sportschool: 2,5 kg (twee 1,25-schijven). */
 export const WEIGHT_STEP = 2.5;
 
-/** Alle sets van een oefening uit de meest recente sessie waarin hij voorkwam. */
-export function lastSetsFor(exerciseName, sessions, excludeSessionId) {
-  const done = sessions
-    .filter((s) => s.id !== excludeSessionId)
-    .filter((s) => s.status === 'voltooid' || s.status === 'minimaal')
+/**
+ * De laatste keer dat je deze oefening deed: welke dag, en met welke sets.
+ *
+ * Een set telt mee als hij is afgevinkt óf als je er zelf een gewicht in hebt
+ * gezet. Dat tweede is belangrijk: je mag een sessie afronden zonder alles af
+ * te vinken, en dan zou je volgende keer weer op nul beginnen en moeten
+ * opzoeken wat je vorige keer tilde.
+ *
+ * Wat de app zelf heeft voorgesteld (`seeded`) telt níét mee zolang je het
+ * niet hebt aangeraakt — anders zou een voorstel dat je nooit hebt getild de
+ * geschiedenis worden, en zou het gewicht vanzelf gaan oplopen.
+ */
+export function lastPerformanceFor(exerciseName, sessions, excludeSessionId) {
+  const candidates = sessions
+    .filter((s) => s.id !== excludeSessionId && s.status !== 'gemist')
     .sort((a, b) => b.day.localeCompare(a.day));
 
-  for (const session of done) {
-    const sets = session.sets.filter((s) => s.exerciseName === exerciseName && s.done);
-    if (sets.length > 0) return sets.sort((a, b) => a.setIndex - b.setIndex);
+  for (const session of candidates) {
+    const mine = session.sets.filter((s) => s.exerciseName === exerciseName);
+    if (mine.length === 0) continue;
+
+    const usable = mine.filter((s) => s.done || (!s.seeded && s.weightKg > 0));
+    if (usable.length === 0) continue;
+
+    return {
+      day: session.day,
+      sets: [...usable].sort((a, b) => a.setIndex - b.setIndex),
+      confirmed: usable.some((s) => s.done),
+    };
   }
-  return [];
+  return null;
+}
+
+/** Alleen de sets van die laatste keer. */
+export function lastSetsFor(exerciseName, sessions, excludeSessionId) {
+  return lastPerformanceFor(exerciseName, sessions, excludeSessionId)?.sets ?? [];
 }
 
 /**
@@ -121,6 +145,9 @@ export function seedSets(exercises, sessions, now) {
         weightKg: suggestion.weightKg,
         reps: suggestion.reps,
         done: false,
+        // Voorgesteld door de app. Zodra je het aanpast of afvinkt vervalt
+        // deze vlag en telt de set mee als geschiedenis.
+        seeded: true,
         loggedAt: now,
       });
     }

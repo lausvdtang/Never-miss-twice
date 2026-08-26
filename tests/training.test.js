@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { buildTemplates, defaultDayAssignment, splitForDays } from '../app/presets.js';
-import { lastSetsFor, suggestNext, WEIGHT_STEP } from '../app/training.js';
+import {
+  lastPerformanceFor,
+  lastSetsFor,
+  suggestNext,
+  WEIGHT_STEP,
+} from '../app/training.js';
 
 const bench = {
   id: 'e1',
@@ -83,10 +88,59 @@ describe('lastSetsFor', () => {
     expect(lastSetsFor('Bench press', [older, current], current.id)[0].weightKg).toBe(50);
   });
 
-  it('negeert niet-afgevinkte sets en geplande sessies', () => {
-    const planned = { ...session('2026-08-02', [{}]), status: 'gepland' };
-    const unchecked = session('2026-08-01', [{ done: false }]);
-    expect(lastSetsFor('Bench press', [planned, unchecked])).toEqual([]);
+  /*
+   * Je mag een sessie afronden zonder alles af te vinken. Zou geschiedenis
+   * alleen uit afgevinkte sets komen, dan sta je de volgende keer weer op nul
+   * en moet je opzoeken wat je vorige keer tilde — precies wat de app zou
+   * moeten voorkomen.
+   */
+  it('telt sets die je zelf hebt ingevuld maar niet hebt afgevinkt', () => {
+    const ingevuld = session('2026-08-01', [
+      { weightKg: 80, reps: 8, done: false },
+      { weightKg: 80, reps: 8, done: false },
+    ]);
+    const sets = lastSetsFor('Bench press', [ingevuld]);
+    expect(sets).toHaveLength(2);
+    expect(suggestNext(bench, sets).weightKg).toBe(80);
+  });
+
+  it('negeert een voorstel van de app dat je nooit hebt aangeraakt', () => {
+    // Anders wordt een gewicht dat je niet getild hebt alsnog geschiedenis,
+    // en loopt het voorstel vanzelf op.
+    const alleenVoorstel = session('2026-08-01', [
+      { weightKg: 80, reps: 8, done: false, seeded: true },
+    ]);
+    expect(lastSetsFor('Bench press', [alleenVoorstel])).toEqual([]);
+  });
+
+  it('negeert een gemiste sessie', () => {
+    const gemist = { ...session('2026-08-02', [{ weightKg: 90 }]), status: 'gemist' };
+    const echt = session('2026-08-01', [{ weightKg: 60 }]);
+    expect(lastSetsFor('Bench press', [gemist, echt])[0].weightKg).toBe(60);
+  });
+
+  it('pakt de meest recente sessie, ook als die niet is afgevinkt', () => {
+    const ouderAfgevinkt = session('2026-08-01', [{ weightKg: 70, done: true }]);
+    const recenterIngevuld = session('2026-08-08', [{ weightKg: 80, done: false }]);
+    expect(lastSetsFor('Bench press', [ouderAfgevinkt, recenterIngevuld])[0].weightKg).toBe(80);
+  });
+});
+
+describe('lastPerformanceFor', () => {
+  it('vertelt van welke dag de vorige keer was', () => {
+    const eerder = session('2026-08-01', [{ weightKg: 80, done: true }]);
+    const vorige = lastPerformanceFor('Bench press', [eerder]);
+    expect(vorige.day).toBe('2026-08-01');
+    expect(vorige.confirmed).toBe(true);
+  });
+
+  it('markeert een sessie die alleen is ingevuld als onbevestigd', () => {
+    const eerder = session('2026-08-01', [{ weightKg: 80, done: false }]);
+    expect(lastPerformanceFor('Bench press', [eerder]).confirmed).toBe(false);
+  });
+
+  it('geeft niets terug als de oefening nog nooit is gedaan', () => {
+    expect(lastPerformanceFor('Bench press', [])).toBeNull();
   });
 });
 

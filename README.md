@@ -23,7 +23,7 @@ Tests zijn het enige dat Node vraagt, en die staan los van de app zelf:
 
 ```bash
 npm install      # alleen vitest
-npm test         # 98 tests over de kernlogica
+npm test         # 104 tests over de kernlogica
 ```
 
 ### GitHub Pages
@@ -102,6 +102,7 @@ Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
 | Gewoonte afvinken | 1 |
 | Dag op groen zetten | 1 (ook een dag terug, direct in de agenda) |
 | Set afvinken in de sportschool | 1 (gewicht en reps staan al voorgevuld) |
+| Opzoeken wat je vorige keer deed | 0 — staat boven elke oefening |
 | Hele oefening afvinken | 1 |
 | Gewicht invoeren | 1 tik + typen (of +/- ingedrukt houden) |
 | Oefening vervangen | 3 — `⋯` → `Vervang` → kiezen |
@@ -109,6 +110,28 @@ Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
 | Slechte dag redden | 2 — `Even geen dag` → bevestigen |
 
 Tijdens een actieve sessie verdwijnt de tabbalk: één taak per scherm.
+
+### Wat je vorige keer deed
+
+Boven elke oefening staat de vorige keer set voor set — `80×8 · 80×8 · 80×7`,
+met de datum erbij en een lijntje van het verloop zodra er twee of meer
+sessies zijn. De invoervelden staan al op dat gewicht, dus je hoeft niets op
+te zoeken.
+
+Een set telt mee als geschiedenis wanneer je hem hebt afgevinkt **of** er zelf
+een gewicht in hebt gezet. Dat tweede is nodig omdat je een sessie mag
+afronden zonder alles af te vinken; anders zou je gewicht bij de volgende
+sessie stil verdwijnen. Zo'n regel staat er dan bij als "niet afgevinkt, wel
+ingevuld".
+
+Wat de app zélf heeft voorgesteld en jij nooit hebt aangeraakt, telt niet mee.
+Anders zou een voorstel dat je niet getild hebt geschiedenis worden en zou het
+gewicht vanzelf gaan oplopen. Sets dragen daarvoor een `seeded`-vlag die
+vervalt zodra je ze aanpast of afvinkt.
+
+De geschiedenis hangt aan de **naam van de oefening**, niet aan het schema. Ga
+je van een 6-daags naar een 4-daags schema, dan vindt Squat in "Lower A" gewoon
+je vorige squats uit "Legs A" terug.
 
 ### Getallen invoeren
 
@@ -156,7 +179,7 @@ TRAINING
   WorkoutTemplate ── naam, split, volgorde, minimale versie
     └ TemplateExercise ── sets, repbereik (low/high), keystone-vlag
   WorkoutSession ─── dag, template, status, start/eind
-    └ SetLog ──────── oefening, setindex, gewicht, reps, gedaan
+    └ SetLog ──────── oefening, setindex, gewicht, reps, gedaan, seeded
   CardioSession ──── dag, type, minuten, afstand
   StepLog ────────── dag, stappen
 
@@ -316,15 +339,16 @@ app expliciet in plaats van "100% minder" te tonen.
 
 ### Tests
 
-98 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
+104 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
 browser laadt — er is geen aparte bouw voor tests:
 
 - `habits.test.js` — streaks, veerkracht bij één misser, de omslag naar
   interventie bij twee, en een test die schuldgevoel-taal uitsluit
 - `nutrition.test.js` — macroberekening, fase-offsets, 80/20-balans, en de
   alcoholpresets tegen de kennisbasis
-- `training.test.js` — progressive overload, schemakeuze, en de controle dat
-  elk schema elke spiergroep ≥2× per week traint
+- `training.test.js` — progressive overload, schemakeuze, welke sets als
+  geschiedenis meetellen, en de controle dat elk schema elke spiergroep ≥2×
+  per week traint
 - `body.test.js` — de 1×-per-week-grens, voortschrijdend gemiddelde en de
   coachingdrempels
 - `progress.test.js` — volume per schema, verloop per oefening, en dat een

@@ -1207,3 +1207,10 @@ textarea.input {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Wat je vorige keer deed, set voor set. */
+.prev-sets {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
