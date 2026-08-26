@@ -25,6 +25,7 @@ function session(day, templateName, sets, status = 'voltooid') {
       weightKg: s.weightKg,
       reps: s.reps,
       done: s.done ?? true,
+      seeded: s.seeded,
       loggedAt: day,
     })),
   };
@@ -54,16 +55,26 @@ describe('volumeSeries', () => {
     ]);
   });
 
-  it('negeert sessies zonder afgevinkte sets', () => {
+  it('telt een sessie waarin je gewicht invulde zonder af te vinken', () => {
     const sessions = [
       session('2026-08-01', 'Push A', [{ weightKg: 60, reps: 8, done: false }]),
       session('2026-08-08', 'Push A', [{ weightKg: 65, reps: 8 }]),
     ];
+    const series = volumeSeries(sessions, 'Push A');
+    expect(series).toHaveLength(2);
+    // En het volume klopt: niet 0 omdat de vinkjes ontbreken.
+    expect(series[0].value).toBe(480);
+  });
+
+  it('telt een sessie die nog openstaat maar waar werk in zit', () => {
+    const sessions = [session('2026-08-01', 'Push A', [{ weightKg: 60, reps: 8 }], 'bezig')];
     expect(volumeSeries(sessions, 'Push A')).toHaveLength(1);
   });
 
-  it('negeert nog lopende sessies', () => {
-    const sessions = [session('2026-08-01', 'Push A', [{ weightKg: 60, reps: 8 }], 'bezig')];
+  it('negeert een sessie met alleen voorstellen van de app', () => {
+    const sessions = [
+      session('2026-08-01', 'Push A', [{ weightKg: 60, reps: 8, done: false, seeded: true }], 'bezig'),
+    ];
     expect(volumeSeries(sessions, 'Push A')).toHaveLength(0);
   });
 

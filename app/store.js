@@ -1,3 +1,5 @@
+import { dayKey } from './date.js';
+import { loggedSets } from './training.js';
 import {
   DEFAULT_FOOD_PRESETS,
   DEFAULT_SUPPLEMENTS,
@@ -66,6 +68,40 @@ export function initialState() {
 
 /* --------------------------------------------------------------- opslag */
 
+/**
+ * Rondt sessies af die je wél gedaan hebt maar nooit hebt afgesloten.
+ *
+ * Je logt je sets en loopt de sportschool uit; op "Sessie afronden" tikken
+ * schiet erbij in. Zo'n sessie bleef op "bezig" staan en telde daardoor
+ * nergens mee — niet in je weekoverzicht, niet in je gewoonte, niet in de
+ * grafieken. Bij het opstarten sluiten we die van vorige dagen alsnog af.
+ *
+ * Alleen sessies waar werk in staat: een sessie die je opende en meteen weer
+ * verliet is geen training.
+ */
+export function finalizeStaleSessions(state, today) {
+  let changed = false;
+
+  const sessions = state.sessions.map((session) => {
+    if (session.status !== 'bezig' || session.day >= today) return session;
+
+    const logged = loggedSets(session);
+    if (logged.length === 0) return session;
+
+    changed = true;
+    const last = logged.reduce(
+      (latest, s) => (s.loggedAt > latest ? s.loggedAt : latest),
+      session.startedAt ?? '',
+    );
+    return { ...session, status: 'voltooid', finishedAt: session.finishedAt ?? last };
+  });
+
+  return changed ? { ...state, sessions } : state;
+}
+
+/** Gezet door load() als de opruimactie iets veranderd heeft. */
+let needsInitialPersist = false;
+
 function load() {
   if (typeof localStorage === 'undefined') return initialState();
   try {
@@ -74,7 +110,10 @@ function load() {
     const parsed = JSON.parse(raw);
     // Migratiepad: ontbrekende velden vullen met de standaard, zodat een
     // oudere opslag nooit een leeg scherm oplevert.
-    return { ...initialState(), ...parsed, version: SCHEMA_VERSION };
+    const merged = { ...initialState(), ...parsed, version: SCHEMA_VERSION };
+    const cleaned = finalizeStaleSessions(merged, dayKey());
+    needsInitialPersist = cleaned !== merged;
+    return cleaned;
   } catch {
     return initialState();
   }
@@ -130,6 +169,11 @@ export function replaceState(next) {
 export function resetAll() {
   replaceState(initialState());
 }
+
+// De opruiming uit load() ook naar de opslag schrijven, zodat wat op schijf
+// staat klopt met wat de app toont. Staat hier onderaan omdat persist() de
+// variabelen hierboven nodig heeft.
+if (needsInitialPersist) persist();
 
 /* --------------------------------------------------------------- helpers */
 

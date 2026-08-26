@@ -7,6 +7,7 @@ import { getState, newId, nowISO, update } from '../store.js';
 import {
   formatWeight,
   lastPerformanceFor,
+  loggedSets,
   sessionDurationMinutes,
   sessionVolume,
   suggestNext,
@@ -605,7 +606,7 @@ export function renderSession(sessionId) {
               el(
                 'span',
                 { class: 'faint' },
-                `${session.sets.filter((s) => s.done).length} sets gelogd`,
+                `${loggedSets(session).length} sets gelogd`,
               ),
             ),
           ),

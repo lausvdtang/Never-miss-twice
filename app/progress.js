@@ -1,5 +1,5 @@
 import { formatDayShort } from './date.js';
-import { sessionVolume } from './training.js';
+import { loggedSets, sessionCounts, sessionVolume } from './training.js';
 
 /**
  * Voortgang per training en per oefening.
@@ -15,8 +15,10 @@ export function sessionsForTemplate(sessions, templateName, { limit = 10 } = {})
     .filter(
       (s) =>
         s.templateName === templateName &&
-        (s.status === 'voltooid' || s.status === 'minimaal') &&
-        s.sets.some((x) => x.done),
+        sessionCounts(s) &&
+        // Alleen sessies met echt getild gewicht: anders staan er lege staven
+        // in de grafiek.
+        s.sets.some((x) => x.weightKg > 0),
     )
     .sort((a, b) => a.day.localeCompare(b.day))
     .slice(-limit);
@@ -38,12 +40,11 @@ export function volumeSeries(sessions, templateName, options) {
  */
 export function topWeightSeries(sessions, exerciseName, { limit = 8 } = {}) {
   const series = [];
-  const sorted = [...sessions]
-    .filter((s) => s.status === 'voltooid' || s.status === 'minimaal')
-    .sort((a, b) => a.day.localeCompare(b.day));
+  const sorted = [...sessions].filter(sessionCounts).sort((a, b) => a.day.localeCompare(b.day));
 
   for (const session of sorted) {
-    const sets = session.sets.filter((s) => s.exerciseName === exerciseName && s.done);
+    // Zelfde maatstaf als de rest: afgevinkt óf zelf ingevuld telt.
+    const sets = loggedSets(session).filter((s) => s.exerciseName === exerciseName);
     if (sets.length === 0) continue;
     series.push({
       day: session.day,

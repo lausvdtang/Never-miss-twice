@@ -2,6 +2,7 @@ import { defaultDayAssignment, splitForDays } from './presets.js';
 import { habitState } from './habits.js';
 import { isoWeekday, lastDays, today as todayKey, weekDays, weekKey } from './date.js';
 import { macroTargets, sumAlcohol, sumMeals } from './nutrition.js';
+import { sessionCounts } from './training.js';
 
 /** Hoeveel dagen wil de gebruiker deze week trainen? Standaard 6 (§8.2). */
 export function availableDaysForWeek(state, week = weekKey()) {
@@ -113,7 +114,7 @@ export function autoDaysFor(state, source) {
 
   if (source === 'training') {
     for (const s of state.sessions) {
-      if (s.status === 'voltooid' || s.status === 'minimaal') days.add(s.day);
+      if (sessionCounts(s)) days.add(s.day);
     }
     // Cardio telt ook als "vandaag bewogen met opzet".
     for (const c of state.cardio) days.add(c.day);
@@ -182,9 +183,7 @@ export function weekSessions(state, anchor = todayKey()) {
 }
 
 export function completedSessionsThisWeek(state, anchor = todayKey()) {
-  return weekSessions(state, anchor).filter(
-    (s) => s.status === 'voltooid' || s.status === 'minimaal',
-  ).length;
+  return weekSessions(state, anchor).filter(sessionCounts).length;
 }
 
 export function needsCheckIn(state, anchor = todayKey()) {
@@ -210,7 +209,7 @@ export function calendarMarks(state) {
 
   for (const day of state.healthyDays ?? []) touch(day).healthy = true;
   for (const s of state.sessions) {
-    if (s.status === 'voltooid' || s.status === 'minimaal') touch(s.day).trained = true;
+    if (sessionCounts(s)) touch(s.day).trained = true;
   }
   for (const c of state.cardio) touch(c.day).trained = true;
 

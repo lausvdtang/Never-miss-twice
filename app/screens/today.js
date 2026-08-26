@@ -23,7 +23,7 @@ import {
   supplementsOn,
 } from '../selectors.js';
 import { getState, newId, nowISO, update } from '../store.js';
-import { hoursSinceLastSession } from '../training.js';
+import { hoursSinceLastSession, loggedSets, sessionCounts } from '../training.js';
 import {
   badge,
   bar,
@@ -62,8 +62,9 @@ export function renderToday() {
   const supplementsTaken = supplementsOn(state, day);
   const steps = stepsOn(state, day);
 
-  const sessionDone =
-    plan.session?.status === 'voltooid' || plan.session?.status === 'minimaal';
+  const sessionDone = sessionCounts(plan.session);
+  // Wel getraind, maar nooit op "afronden" getikt: dat mag je zien én hervatten.
+  const stillOpen = sessionDone && plan.session.status === 'bezig';
   const restDay = !plan.template;
   const kcalLeft = targets.kcal - totals.kcal;
   const healthyToday = isHealthyDay(state, day);
@@ -297,14 +298,20 @@ export function renderToday() {
             el(
               'h2',
               {},
-              plan.session?.status === 'minimaal'
+              plan.session.status === 'minimaal'
                 ? 'Minimale versie gedaan'
-                : `${plan.session?.templateName} — klaar`,
+                : `${plan.session.templateName} — ${stillOpen ? 'bezig' : 'klaar'}`,
             ),
-            el('p', { class: 'muted' }, 'Ik ben iemand die traint. Vandaag klopt dat weer.'),
-            when(plan.session && plan.session.sets.length > 0, () =>
-              button('Sessie bekijken', {
-                variant: 'ghost block',
+            el(
+              'p',
+              { class: 'muted' },
+              stillOpen
+                ? `${loggedSets(plan.session).length} sets gelogd. Telt al mee — je kunt gewoon verder.`
+                : 'Ik ben iemand die traint. Vandaag klopt dat weer.',
+            ),
+            when(plan.session.sets.length > 0, () =>
+              button(stillOpen ? `Verder met ${plan.session.templateName}` : 'Sessie bekijken', {
+                variant: stillOpen ? 'primary lg block' : 'ghost block',
                 onclick: () => go('sessie', plan.session.id),
               }),
             ),

@@ -12,8 +12,10 @@ import {
 import { getState, newId, nowISO, update } from '../store.js';
 import {
   cardioInterferenceWarning,
+  loggedSets,
   runsThisWeek,
   seedSets,
+  sessionCounts,
   sessionVolume,
   weeklyCardioMinutes,
 } from '../training.js';
@@ -273,12 +275,10 @@ export function renderTraining() {
   const cardio = weekCardio(state, day);
   const plan = planForDay(state, day);
 
-  const done = schedule.filter(
-    (d) => d.session?.status === 'voltooid' || d.session?.status === 'minimaal',
-  ).length;
+  const done = schedule.filter((d) => sessionCounts(d.session)).length;
 
   const history = [...state.sessions]
-    .filter((s) => s.status === 'voltooid' || s.status === 'minimaal')
+    .filter(sessionCounts)
     .sort((a, b) => b.day.localeCompare(a.day))
     .slice(0, 12);
 
@@ -289,10 +289,7 @@ export function renderTraining() {
     .sort((a, b) => b.series.length - a.series.length)
     .slice(0, 4);
 
-  const warning = cardioInterferenceWarning(
-    !!plan.template,
-    plan.session?.status === 'voltooid' || plan.session?.status === 'minimaal',
-  );
+  const warning = cardioInterferenceWarning(!!plan.template, sessionCounts(plan.session));
 
   return el(
     'div',
@@ -325,8 +322,9 @@ export function renderTraining() {
         { class: 'list' },
         ...schedule.map((d) => {
           const isToday = d.day === day;
-          const finished =
-            d.session?.status === 'voltooid' || d.session?.status === 'minimaal';
+          const finished = sessionCounts(d.session);
+          // Wel getraind, maar nog niet afgerond: dat mag je zien.
+          const stillOpen = finished && d.session.status === 'bezig';
           return el(
             'button',
             {
@@ -359,7 +357,9 @@ export function renderTraining() {
                 finished
                   ? d.session.status === 'minimaal'
                     ? 'Minimale versie — telt mee'
-                    : `Voltooid · ${Math.round(sessionVolume(d.session)).toLocaleString('nl-NL')} kg volume`
+                    : `${stillOpen ? 'Bezig' : 'Voltooid'} · ${Math.round(
+                        sessionVolume(d.session),
+                      ).toLocaleString('nl-NL')} kg volume`
                   : d.isTeachingDay
                     ? `Lesdag · voorkeur ${d.preferredTime}`
                     : d.template
@@ -488,7 +488,7 @@ export function renderTraining() {
                   `${formatDayShort(s.day)} · ${
                     s.status === 'minimaal'
                       ? 'minimale versie'
-                      : `${s.sets.filter((x) => x.done).length} sets`
+                      : `${loggedSets(s).length} sets`
                   }`,
                 ),
               ),

@@ -23,7 +23,7 @@ Tests zijn het enige dat Node vraagt, en die staan los van de app zelf:
 
 ```bash
 npm install      # alleen vitest
-npm test         # 104 tests over de kernlogica
+npm test         # 117 tests over de kernlogica
 ```
 
 ### GitHub Pages
@@ -110,6 +110,22 @@ Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
 | Slechte dag redden | 2 — `Even geen dag` → bevestigen |
 
 Tijdens een actieve sessie verdwijnt de tabbalk: één taak per scherm.
+
+### Wanneer telt een sessie als gedaan?
+
+Niet iedereen tikt na de laatste set nog op "Sessie afronden" — je pakt je tas
+en loopt de sportschool uit. Een sessie telt daarom mee zodra er werk in staat:
+een afgevinkte set, of een set waar je zelf een gewicht in hebt gezet. Ook als
+hij nog op "bezig" staat.
+
+Dat geldt overal hetzelfde: weekoverzicht, teller, trainingsgewoonte, stip in
+de agenda en de voortgangsgrafieken gebruiken allemaal dezelfde maatstaf
+(`sessionCounts`). Een sessie van vandaag die nog openstaat toont "bezig" met
+een knop om verder te gaan; sessies van eerdere dagen worden bij het opstarten
+alsnog afgerond.
+
+Een sessie die je opende en meteen weer verliet telt niet: daar staan alleen
+voorstellen van de app in.
 
 ### Wat je vorige keer deed
 
@@ -321,10 +337,13 @@ hertekening, zodat de focus tijdens het typen nooit wegspringt.
 **Opslag.** Alles in `localStorage` onder één sleutel; voortgangsfoto's in
 IndexedDB omdat ze niet in de quota van `localStorage` passen.
 
-**Offline.** De service worker cachet de app-shell met
-stale-while-revalidate: je krijgt meteen de gecachete versie en de nieuwe wordt
-op de achtergrond opgehaald. Omdat er geen buildstap is, zit er geen hash in de
-bestandsnamen — cache-first zou een update dus nooit binnenhalen.
+**Offline.** De service worker cachet de app-shell en haalt bestanden
+netwerk-eerst op, met 2,5 seconde wachttijd en de cache als vangnet. Zonder
+buildstap zit er geen hash in de bestandsnamen, dus de cache kan niet aan de
+naam zien of iets nieuw is. Stale-while-revalidate leek logischer maar loopt
+altijd één keer laden achter: je ziet de vorige versie en de nieuwe pas de keer
+daarna. Zonder bereik is er geen wachttijd — dan valt hij meteen terug op de
+cache.
 
 **Data eruit krijgen.** CSV per onderdeel of als één bestand, een printbaar
 overzicht (de browser maakt de PDF, zodat er niets het apparaat verlaat), en een
@@ -339,7 +358,7 @@ app expliciet in plaats van "100% minder" te tonen.
 
 ### Tests
 
-104 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
+117 tests over de logica die fout kán gaan. Ze draaien op dezelfde modules die de
 browser laadt — er is geen aparte bouw voor tests:
 
 - `habits.test.js` — streaks, veerkracht bij één misser, de omslag naar
@@ -353,6 +372,8 @@ browser laadt — er is geen aparte bouw voor tests:
   coachingdrempels
 - `progress.test.js` — volume per schema, verloop per oefening, en dat een
   lichaamsgewicht-sessie geen "100% minder" oplevert
+- `session-counting.test.js` — wanneer een sessie meetelt, en dat een sessie
+  die je niet hebt afgerond bij het opstarten alsnog wordt afgesloten
 - `scheduler.test.js` — dat een hertekening die zichzelf uitlokt netjes
   achteraan aansluit in plaats van de lopende beurt te onderbreken
 - `store.test.js` — dat elke wijziging een nieuwe root-referentie oplevert

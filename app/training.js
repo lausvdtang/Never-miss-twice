@@ -5,6 +5,28 @@ import { hoursSince, nl } from './date.js';
 export const WEIGHT_STEP = 2.5;
 
 /**
+ * De sets waarvan vaststaat dat je ze gedaan hebt: afgevinkt, of zelf een
+ * gewicht ingevuld. Wat de app enkel voorstelde (`seeded`) telt niet mee.
+ */
+export function loggedSets(session) {
+  return session.sets.filter((s) => s.done || (!s.seeded && s.weightKg > 0));
+}
+
+/**
+ * Heeft deze sessie plaatsgevonden?
+ *
+ * Niet iedereen tikt na de laatste set nog op "Sessie afronden" — je pakt je
+ * tas en loopt de sportschool uit. Een sessie waar werk in staat telt daarom
+ * ook als hij nog op "bezig" staat; anders lijkt een training die je wél
+ * gedaan hebt nergens te bestaan.
+ */
+export function sessionCounts(session) {
+  if (!session || session.status === 'gemist') return false;
+  if (session.status === 'voltooid' || session.status === 'minimaal') return true;
+  return loggedSets(session).length > 0;
+}
+
+/**
  * De laatste keer dat je deze oefening deed: welke dag, en met welke sets.
  *
  * Een set telt mee als hij is afgevinkt óf als je er zelf een gewicht in hebt
@@ -93,9 +115,9 @@ export function formatWeight(kg) {
 
 /** Totaal getild volume (kg × reps) — puur informatief op het overzicht. */
 export function sessionVolume(session) {
-  return session.sets
-    .filter((s) => s.done)
-    .reduce((sum, s) => sum + s.weightKg * s.reps, 0);
+  // Zelfde maatstaf als de rest: afgevinkt óf zelf ingevuld telt. Anders staat
+  // een sessie die je niet hebt afgevinkt op 0 kg in de grafiek.
+  return loggedSets(session).reduce((sum, s) => sum + s.weightKg * s.reps, 0);
 }
 
 export function sessionDurationMinutes(session) {
