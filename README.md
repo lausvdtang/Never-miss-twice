@@ -1,10 +1,12 @@
 # Never Miss Twice
 
-Een fitness-, voedings- en gewoontetracker voor iemand met ADHD die duurzaam
-leaner en atletischer wil worden — zonder afhankelijk te zijn van wilskracht.
+Een fitness-, voedings- en gewoontetracker die is gebouwd om vol te houden
+zonder op wilskracht te leunen: weinig taps per handeling, duidelijke
+structuur, en geen schuldgevoel als een dag niet lukt.
 
 De app draait volledig lokaal, werkt offline, vraagt geen account en stuurt geen
-enkel gegeven naar een server.
+enkel gegeven naar een server. Er staat dus nooit persoonlijke data in deze
+repository — alleen de code.
 
 ## Geen buildstap
 
@@ -28,14 +30,13 @@ npm test         # 117 tests over de kernlogica
 
 ### GitHub Pages
 
-Zet Pages op **Deploy from a branch**, met de branch die je wilt publiceren en
-map **`/ (root)`**. Er is geen workflow of build nodig.
+Zet Pages op **Deploy from a branch**, branch `main`, map **`/ (root)`**. Er is
+geen workflow of build nodig.
 
 Twee dingen die dit mogelijk maken:
 
 - **Alle paden zijn relatief** (`./app/main.js`, `./styles.css`). De app werkt
-  daardoor net zo goed op `https://gebruiker.github.io/Sport-app/` als op een
-  eigen domein.
+  daardoor net zo goed onder een submap als op een eigen domein.
 - **Routes lopen via de hash** (`#/training`). Pages kent geen server-side
   rewrites, dus een pad als `/training` zou een 404 geven.
 
