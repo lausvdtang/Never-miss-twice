@@ -117,3 +117,147 @@ export function progressSummary(series) {
   }
   return `${Math.abs(change)}% minder dan de vorige keer — dat hoort erbij. Beste tot nu toe: ${best.toLocaleString('nl-NL')} kg.`;
 }
+
+/**
+ * Het zwaarste werkgewicht per sessie, met de reps die daarbij horen.
+ *
+ * `topWeightSeries` geeft de hóógste reps van álle sets — handig voor een
+ * lijn, maar misleidend in een overzicht: 3 reps op 100 kg en 12 op 60 kg zou
+ * dan "100 kg × 12" worden. Hier tellen alleen de reps op het topgewicht.
+ */
+function topPerSession(sessions, exerciseName) {
+  const out = [];
+  const sorted = [...sessions].filter(sessionCounts).sort((a, b) => a.day.localeCompare(b.day));
+
+  for (const session of sorted) {
+    const sets = loggedSets(session).filter((s) => s.exerciseName === exerciseName);
+    if (sets.length === 0) continue;
+
+    const weightKg = Math.max(...sets.map((s) => s.weightKg));
+    const atTop = sets.filter((s) => s.weightKg === weightKg);
+    out.push({
+      day: session.day,
+      weightKg,
+      reps: Math.max(...atTop.map((s) => s.reps)),
+      setCount: atTop.length,
+    });
+  }
+  return out;
+}
+
+/** Hoofdoefeningen bovenaan, daarna op alfabet — een vaste, voorspelbare volgorde. */
+function byImportance(a, b) {
+  if (a.isKeystone !== b.isKeystone) return a.isKeystone ? -1 : 1;
+  return a.name.localeCompare(b.name, 'nl');
+}
+
+/**
+ * Actueel werkgewicht per oefening.
+ *
+ * Eén regel per oefening, niet per schema: "Squat" staat in Lower A én in Full
+ * Body, maar het is dezelfde oefening met hetzelfde gewicht. De app houdt de
+ * geschiedenis ook op naam bij, dus dedupliceren op naam klopt met de rest.
+ *
+ * Oefeningen die je ooit gelogd hebt maar die niet meer in je schema staan
+ * blijven zichtbaar (`scheduled: false`) — anders verdwijnt je gewicht zodra
+ * je een split wisselt, precies wanneer je het wilt opzoeken.
+ */
+export function currentWeights(sessions, scheduledExercises = []) {
+  const rows = new Map();
+
+  for (const e of scheduledExercises) {
+    const existing = rows.get(e.name);
+    if (existing) {
+      existing.isKeystone = existing.isKeystone || !!e.isKeystone;
+      continue;
+    }
+    rows.set(e.name, {
+      name: e.name,
+      isKeystone: !!e.isKeystone,
+      repRange: e.repRange ?? null,
+      plannedSets: e.sets ?? null,
+      note: e.note ?? null,
+      scheduled: true,
+    });
+  }
+
+  for (const session of sessions) {
+    for (const set of session.sets) {
+      if (rows.has(set.exerciseName)) continue;
+      rows.set(set.exerciseName, {
+        name: set.exerciseName,
+        isKeystone: false,
+        repRange: null,
+        plannedSets: null,
+        note: null,
+        scheduled: false,
+      });
+    }
+  }
+
+  return [...rows.values()]
+    .map((base) => {
+      const history = topPerSession(sessions, base.name);
+      const last = history[history.length - 1] ?? null;
+      const previous = history.length >= 2 ? history[history.length - 2] : null;
+
+      return {
+        ...base,
+        weightKg: last ? last.weightKg : null,
+        reps: last ? last.reps : null,
+        setCount: last ? last.setCount : 0,
+        day: last ? last.day : null,
+        // Afronden op 2 decimalen: 82.5 - 80 geeft in drijvende komma 2.4999…
+        deltaKg:
+          last && previous ? Math.round((last.weightKg - previous.weightKg) * 100) / 100 : null,
+        sessionCount: history.length,
+        series: history.slice(-8).map((h) => h.weightKg),
+      };
+    })
+    .sort(byImportance);
+}
+
+/** Alleen de oefeningen waar al een gewicht van bekend is. */
+export function loggedWeights(rows) {
+  return rows.filter((r) => r.day !== null);
+}
+
+/**
+ * Eén regel samenvatting boven het overzicht. Bewust zonder oordeel: minder
+ * dan vorige keer is informatie, geen fout.
+ */
+export function weightsSummary(rows) {
+  const logged = loggedWeights(rows);
+  if (logged.length === 0) {
+    return 'Nog geen gewichten gelogd. Zodra je een sessie invult, staat het hier.';
+  }
+  const up = logged.filter((r) => r.deltaKg !== null && r.deltaKg > 0).length;
+  const base = `${logged.length} ${logged.length === 1 ? 'oefening' : 'oefeningen'} met een gewicht`;
+  if (up === 0) return `${base}.`;
+  return `${base}, waarvan ${up} zwaarder dan de vorige keer.`;
+}
+
+/**
+ * De sessies waarin één oefening voorkomt, met alle sets — nieuwste eerst.
+ * Voor het venster achter een regel in het gewichtenoverzicht.
+ */
+export function exerciseSessions(sessions, exerciseName, { limit = 12 } = {}) {
+  return [...sessions]
+    .filter(sessionCounts)
+    .sort((a, b) => b.day.localeCompare(a.day))
+    .map((session) => ({
+      session,
+      sets: loggedSets(session)
+        .filter((s) => s.exerciseName === exerciseName)
+        .sort((a, b) => a.setIndex - b.setIndex),
+    }))
+    .filter((entry) => entry.sets.length > 0)
+    .slice(0, limit)
+    .map(({ session, sets }) => ({
+      id: session.id,
+      day: session.day,
+      templateName: session.templateName,
+      sets,
+      topWeightKg: Math.max(...sets.map((s) => s.weightKg)),
+    }));
+}

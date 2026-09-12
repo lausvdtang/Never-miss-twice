@@ -2,6 +2,7 @@ export const ROUTES = [
   'vandaag',
   'training',
   'sessie',
+  'gewichten',
   'voeding',
   'lichaam',
   'gewoontes',

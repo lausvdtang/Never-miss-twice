@@ -10,6 +10,7 @@ import { renderSession } from './screens/session.js';
 import { renderSettings } from './screens/settings.js';
 import { renderToday, setTodayRerender } from './screens/today.js';
 import { renderTraining } from './screens/training.js';
+import { renderWeights } from './screens/weights.js';
 import { renderWeek } from './screens/week.js';
 
 const root = document.getElementById('root');
@@ -21,6 +22,8 @@ function renderRoute() {
       return renderTraining();
     case 'sessie':
       return renderSession(param ?? '');
+    case 'gewichten':
+      return renderWeights();
     case 'voeding':
       return renderNutrition();
     case 'lichaam':

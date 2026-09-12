@@ -1,11 +1,12 @@
 import { el, when } from '../dom.js';
 import { CARDIO_GUIDANCE, SPLIT_LABELS } from '../presets.js';
-import { DAY_NAMES, formatDayShort, today } from '../date.js';
+import { DAY_NAMES, formatDayShort, nl, today } from '../date.js';
 import { go } from '../nav.js';
 import {
   availableDaysForWeek,
   planForDay,
   splitForWeek,
+  templatesForSplit,
   weekCardio,
   weekSchedule,
 } from '../selectors.js';
@@ -19,7 +20,13 @@ import {
   sessionVolume,
   weeklyCardioMinutes,
 } from '../training.js';
-import { changeLabel, progressSummary, volumeSeries } from '../progress.js';
+import {
+  changeLabel,
+  currentWeights,
+  loggedWeights,
+  progressSummary,
+  volumeSeries,
+} from '../progress.js';
 import {
   badge,
   barChart,
@@ -34,6 +41,10 @@ import {
   tapFeedback,
   toast,
 } from '../ui.js';
+
+function kgLabel(value) {
+  return Number.isInteger(value) ? String(value) : nl(value);
+}
 
 /**
  * Start (of hervat) de sessie van een dag en geeft het sessie-id terug.
@@ -291,6 +302,26 @@ export function renderTraining() {
 
   const warning = cardioInterferenceWarning(!!plan.template, sessionCounts(plan.session));
 
+  /*
+   * Actueel gewicht per oefening. Hier alleen de hoofdoefeningen als
+   * voorproefje — het volledige overzicht is één tik verderop, zodat dit
+   * scherm niet dichtslibt met dertig regels.
+   */
+  const weightRows = currentWeights(
+    state.sessions,
+    templatesForSplit(state, split).flatMap((t) => t.exercises),
+  );
+  const loggedRows = loggedWeights(weightRows);
+  /*
+   * Voor het voorproefje tellen de hoofdoefeningen eerst; blijft er ruimte
+   * over, dan de zwaarste. Alfabetisch aanvullen zet "Barbell curl" tussen je
+   * squat en bench, en dat leest niet als je grote lifts.
+   */
+  const topLifts = [
+    ...loggedRows.filter((r) => r.isKeystone),
+    ...loggedRows.filter((r) => !r.isKeystone).sort((a, b) => b.weightKg - a.weightKg),
+  ].slice(0, 3);
+
   return el(
     'div',
     { class: 'screen' },
@@ -379,6 +410,44 @@ export function renderTraining() {
         variant: 'primary xl block',
         sub: 'Vandaag · 45-60 min',
         onclick: () => go('sessie', startSession(day)),
+      }),
+    ),
+
+    /* Wat til ik nu? Het getal dat je in de sportschool wilt opzoeken. */
+    card(
+      null,
+      cardTitle(
+        el('p', { class: 'eyebrow' }, 'Gewichten'),
+        when(loggedRows.length > 0, () => badge(`${loggedRows.length} oefeningen`, 'calm')),
+      ),
+      when(topLifts.length > 0, () =>
+        el(
+          'div',
+          { class: 'weights-list' },
+          ...topLifts.map((row) =>
+            el(
+              'div',
+              { class: 'weights-row' },
+              el('span', { class: 'grow title' }, row.name),
+              el(
+                'span',
+                { class: 'weights-kg' },
+                row.weightKg === 0 ? 'eigen gewicht' : `${kgLabel(row.weightKg)} kg`,
+              ),
+            ),
+          ),
+        ),
+      ),
+      when(topLifts.length === 0, () =>
+        el(
+          'p',
+          { class: 'muted' },
+          'Zodra je in een sessie een gewicht invult, staat het hier bij elkaar.',
+        ),
+      ),
+      button('Alle oefeningen', {
+        variant: 'ghost block',
+        onclick: () => go('gewichten'),
       }),
     ),
 

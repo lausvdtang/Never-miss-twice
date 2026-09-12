@@ -59,8 +59,8 @@ de interventieteksten die woorden ook echt niet bevatten.
 
 ## 1. Schermenoverzicht (user flow)
 
-Zeven schermen, plus onboarding. De tabbalk toont er vijf; Lichaam en
-Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
+Acht schermen, plus onboarding. De tabbalk toont er vijf; Lichaam, Gewichten
+en Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
 
 ```
                         ┌───────────────┐
@@ -89,6 +89,10 @@ Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
   │ SESSIE  │ sets loggen              │ LICHAAM │ 1×/week wegen
   │ (modaal)│ geen tabbalk             │  trend  │ foto's
   └─────────┘                          └─────────┘
+       ▲
+       │  ┌───────────┐
+       └──│ GEWICHTEN │ actueel kg per oefening, verloop per oefening
+          └───────────┘
 
                     ⚙︎ → INSTELLINGEN (profiel, fase, export, thema)
 ```
@@ -104,6 +108,8 @@ Instellingen zijn één tap vanaf de plek waar je ze nodig hebt.
 | Dag op groen zetten | 1 (ook een dag terug, direct in de agenda) |
 | Set afvinken in de sportschool | 1 (gewicht en reps staan al voorgevuld) |
 | Opzoeken wat je vorige keer deed | 0 — staat boven elke oefening |
+| Alle actuele gewichten zien | 2 — `Training` → `Alle oefeningen` |
+| Verloop van één oefening zien | 3 — plus een tik op die oefening |
 | Hele oefening afvinken | 1 |
 | Gewicht invoeren | 1 tik + typen (of +/- ingedrukt houden) |
 | Oefening vervangen | 3 — `⋯` → `Vervang` → kiezen |
@@ -249,6 +255,9 @@ Twee ontwerpkeuzes die het gebruik merkbaar veranderen:
   erbij — plus "iets anders gedaan" voor alles buiten het schema
 - Voortgang per training: volume per sessie als staafgrafiek met
   procentuele verandering, en per oefening het verloop van je werkgewicht
+- Gewichtenoverzicht: één regel per oefening met je laatste werkgewicht, het
+  verschil met de vorige keer en een lijntje van het verloop — tikken opent de
+  volledige geschiedenis van die oefening
 - Agenda op het beginscherm: dagen op groen zetten (ook terugwerkend), met
   een stipje op de dagen waarop je getraind hebt
 - "Even geen dag"-knop en minimale versies
@@ -321,12 +330,12 @@ app/
   presets.js        de kennisbasis
   nutrition.js      macro's, fase-offsets, 80/20
   training.js       progressive overload, schemakeuze
-  progress.js       volume per sessie, verloop per oefening
+  progress.js       volume per sessie, actueel gewicht en verloop per oefening
   habits.js         streaks en never-miss-twice
   body.js           weeglimiet, trend, coachingdrempels
   selectors.js      afgeleide gegevens over modules heen
   export.js         CSV, printbaar rapport, back-up
-  screens/          negen schermen, elk een functie die DOM teruggeeft
+  screens/          tien schermen, elk een functie die DOM teruggeeft
 ```
 
 **Hertekenen.** Een scherm is een functie die een DOM-element teruggeeft. Bij
